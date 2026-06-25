@@ -12,3 +12,4 @@
 {"id":"019effca-2d9a-7432-992f-13fcdf1aa95c","author":"JB","kind":"prompt","text":"/clair","ts":"2026-06-25T17:18:19Z","turn":"2a3b1ce3-adaa-405a-a23c-67c9e0502de6"}
 {"id":"019effca-be60-7f31-bbcb-98e0cbd91832","author":"JB","kind":"prompt","text":"what does /clair on its own do,","ts":"2026-06-25T17:18:57Z","turn":"35ae5f3a-a2ab-49b1-87f5-eebd40188793"}
 {"id":"019effca-dfa0-73b0-b4f1-a1417ba9259e","author":"JB","kind":"summary","text":"Want to check the local git config to confirm your alias is set, or is there something else you want to tackle while the classifier recovers?","ts":"2026-06-25T17:19:06Z","turn":"2a3b1ce3-adaa-405a-a23c-67c9e0502de6"}
+{"id":"019effcb-428d-76f3-bace-452fc659c8e6","author":"JB","kind":"prompt","text":"/clair:init JB","ts":"2026-06-25T17:19:31Z","turn":"2a3b1ce3-adaa-405a-a23c-67c9e0502de6"}
