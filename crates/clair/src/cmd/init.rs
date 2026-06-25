@@ -12,16 +12,16 @@
 use std::io::{IsTerminal, Write};
 
 use crate::cli::InitArgs;
-use crate::cmd::identity::{persist_alias, RepoConfig};
 use crate::cmd::repo_from;
+use crate::handshake;
 
 /// Run `clair init`. Returns the process exit code.
 pub fn run(args: &InitArgs) -> i32 {
     let repo = repo_from(&args.repo);
-    let src = RepoConfig::new(&repo);
 
     // Resolve the alias to persist: explicit arg, else an interactive prompt, else
-    // a guidance error on a non-TTY.
+    // a guidance error on a non-TTY. (Prompting is a CLI-only concern; persistence
+    // is the shared handshake operation.)
     let alias = match args.alias.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         Some(a) => a.to_string(),
         None => match prompt_for_alias() {
@@ -33,15 +33,18 @@ pub fn run(args: &InitArgs) -> i32 {
         },
     };
 
-    if let Err(e) = persist_alias(&src, &alias) {
-        eprintln!("clair: could not persist alias: {e}");
-        return 1;
-    }
+    let out = match handshake::init(&repo, &alias) {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("clair: {}", e.message());
+            return e.exit_code();
+        }
+    };
 
     if args.json {
-        println!("{}", serde_json::json!({ "alias": alias }));
+        println!("{}", serde_json::json!({ "alias": out.alias }));
     } else {
-        println!("You are now '{alias}' in this repo.");
+        println!("You are now '{}' in this repo.", out.alias);
     }
     0
 }

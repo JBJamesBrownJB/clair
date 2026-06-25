@@ -17,11 +17,6 @@ use clair_core::Repo;
 
 use crate::cli::RepoArgs;
 
-/// The exit code used when `with` aborts on a dirty working tree.
-pub const EXIT_DIRTY: i32 = 4;
-/// The exit code used when a `with <handle>` cannot be resolved.
-pub const EXIT_RESOLVE: i32 = 3;
-
 /// Build a [`Repo`] from the shared repo flags, defaulting the root to `.`.
 pub fn repo_from(args: &RepoArgs) -> Repo {
     let root = args

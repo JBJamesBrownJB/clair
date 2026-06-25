@@ -1,13 +1,14 @@
 //! `clair pair` — list everyone ready to pair in this repo, with their branch.
 //!
 //! Read-only: fetches `clair/ready`, folds latest-per-user, filters this repo.
-//! Repo-wide and branch-aware — my own current branch is irrelevant.
+//! Repo-wide and branch-aware — my own current branch is irrelevant. The fold +
+//! self-exclusion live in [`crate::handshake::pair`]; this module only renders.
 
-use clair_core::registry::{self, ReadyPeer};
+use clair_core::registry::ReadyPeer;
 
 use crate::cli::PairArgs;
-use crate::cmd::identity;
 use crate::cmd::{now_rfc3339, repo_from};
+use crate::handshake;
 
 /// Run `clair pair`. Returns the process exit code.
 pub fn run(args: &PairArgs) -> i32 {
@@ -23,26 +24,15 @@ pub fn run_bare(args: &PairArgs) -> i32 {
 fn run_inner(args: &PairArgs, bare: bool) -> i32 {
     let repo = repo_from(&args.repo);
 
-    let slug = match repo.repo_slug() {
-        Ok(s) => s,
+    let result = match handshake::pair(&repo, args.as_alias.as_deref()) {
+        Ok(r) => r,
         Err(e) => {
-            eprintln!("clair: could not determine repo: {e}");
-            return 1;
+            eprintln!("clair: {}", e.message());
+            return e.exit_code();
         }
     };
-
-    // `--as` overrides AND persists my alias for the session.
-    let me = identity::resolve_and_persist(&repo, args.as_alias.as_deref()).to_ascii_lowercase();
-
-    let mut peers = match registry::list(&repo, &slug) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("clair: failed to read the registry: {e}");
-            return 1;
-        }
-    };
-    // Don't list myself as someone to pair with.
-    peers.retain(|p| p.user.trim().to_ascii_lowercase() != me);
+    let slug = result.repo;
+    let peers = result.peers;
 
     if args.json {
         let now = now_rfc3339();

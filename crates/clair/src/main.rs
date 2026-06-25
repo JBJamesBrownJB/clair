@@ -1,17 +1,19 @@
 //! clair — the binary.
 //!
 //! Thin clap surface over `clair-core`: human commands (`ready`/`pair`/`with`),
-//! the Claude Code hook adapters (`hook prompt`/`hook stop`), an MCP `serve` stub,
-//! and a hidden `test-observe` asserter. The hook subcommands carry zero logic —
-//! they only translate stdin/env <-> `HookCtx` <-> stdout JSON, so the Tier-2
-//! harness exercises the same code path.
+//! the Claude Code hook adapters (`hook prompt`/`hook stop`), the MCP `serve`
+//! server, and a hidden `test-observe` asserter. The hook subcommands carry zero
+//! logic — they only translate stdin/env <-> `HookCtx` <-> stdout JSON, so the
+//! Tier-2 harness exercises the same code path.
 //!
-//! This stage implements the human commands `ready`/`pair`/`with`. The hook
-//! adapters and `test-observe` are wired as seams (clap parses them) and fleshed
-//! out by later stages; `serve` is the deferred-MCP stub (exit 2, ADR 0003).
+//! The handshake operations live once in [`handshake`]; both the CLI subcommands
+//! ([`cmd`]) and the MCP tools ([`serve`]) call that single implementation (ADR
+//! 0003 — dual MCP + Skill surface).
 
 mod cli;
 mod cmd;
+mod handshake;
+mod serve;
 
 use clap::Parser;
 
@@ -28,10 +30,7 @@ fn main() {
         Some(Cmd::With(args)) => cmd::with::run(args),
         Some(Cmd::Hook(HookCmd::Prompt(args))) => cmd::hook::run_prompt(args),
         Some(Cmd::Hook(HookCmd::Stop(args))) => cmd::hook::run_stop(args),
-        Some(Cmd::Serve) => {
-            eprintln!("MCP serve is a later slice");
-            2
-        }
+        Some(Cmd::Serve) => serve::run(),
         Some(Cmd::TestObserve(args)) => cmd::test_observe::run(args),
     };
     std::process::exit(code);

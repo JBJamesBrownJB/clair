@@ -18,10 +18,19 @@ plugin); there is no separate binary to install. **Git is the only backend**; al
 clair state lives on orphan branches (`clair/ready`, `clair/<branch>`) and is
 ephemeral — never merged, never an audit log.
 
-You drive clair through a handful of slash commands and two background hooks. The
-hooks are bundled in this plugin and **fire automatically** whenever the plugin is
-enabled; you only ever invoke the commands. Every clair invocation goes through the
-launcher: `bash "${CLAUDE_PLUGIN_ROOT}/bin/clair-launch.sh" <args>`.
+You drive clair through a handful of slash commands (and plain English) plus two
+background hooks. The handshake operations are **typed MCP tools** served by the
+bundled `clair serve` server (wired via the plugin's `.mcp.json`); the slash
+commands are thin wrappers that call them, and natural language ("pair with rajiv")
+triggers the same tools. The hooks are bundled in this plugin and **fire
+automatically** whenever the plugin is enabled — you never invoke them, and they go
+through the launcher `bash "${CLAUDE_PLUGIN_ROOT}/bin/clair-launch.sh" <args>`.
+
+The clair handshake is exposed as MCP tools (`init`, `ready`, `pair`, `with`,
+`status`) — refer to them by purpose; the model finds them by intent. Claude Code
+namespaces plugin tools, so they actually appear as `mcp__plugin_clair_clair__<tool>`.
+They prompt once for approval (choose "always allow"); to pre-approve, add
+`permissions.allow: ["mcp__plugin_clair_clair__*"]` (or just confirm once).
 
 ## Identity: your alias
 
@@ -45,22 +54,26 @@ with the `clair:` prefix:
 - **`/clair:init <alias>`** — choose and persist the user's alias for this repo.
 - **`/clair:ready`** — register the user as available to pair in this repo, on
   their current branch.
-- **`/clair:pair`** — list everyone ready to pair in this repo, with their branch
-  (`pair --json`), then present the list and let the user pick.
+- **`/clair:pair`** — list everyone ready to pair in this repo, with their branch,
+  then present the list and let the user pick.
 - **`/clair:with <handle>`** — resolve `<handle>` to a ready peer, `git fetch` +
   check out their branch (stopping with a clear message if the working tree is
   dirty — clair never moves the user's work).
 
-All run the bundled binary via the launcher, e.g.
-`bash "${CLAUDE_PLUGIN_ROOT}/bin/clair-launch.sh" init <alias>`.
+Each command (and the matching plain-English phrasing) calls the corresponding
+clair MCP tool (`init` / `ready` / `pair` / `with` / `status`).
 
-### Mapping natural phrasings (args to the launcher)
+### Mapping natural phrasings to the MCP tools
 
-- "/clair:init JB" → launcher `init JB`
-- "/clair:pair" → launcher `pair --json` (then present the list, let the user pick)
-- "/clair:with JB" → launcher `with JB`. **If no alias is set** (exit 5), first ASK
-  the user "what alias should I use?", then run launcher `with JB --as <answer>`.
-- "/clair:with JB as Rajiv" → launcher `with JB --as Rajiv`
+- "/clair:init JB" / "set my clair alias to JB" → `init` with `alias="JB"`
+- "/clair:ready" / "go ready to pair" → `ready` (no args)
+- "/clair:pair" / "who's ready to pair?" → `pair` (no args), then present the list
+- "/clair:with JB" / "pair with JB" → `with` with `name="JB"`. **If the tool says no
+  alias is set**, first ASK the user "what alias should I use?", then call `with`
+  again with `name="JB"`, `as_alias="<answer>"`.
+- "/clair:with JB as Rajiv" / "pair with JB as Rajiv" → `with` with `name="JB"`,
+  `as_alias="Rajiv"`
+- "what's my clair status?" → `status` (no args)
 
 ## How shared context reaches the session
 

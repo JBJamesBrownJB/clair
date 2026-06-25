@@ -25,6 +25,9 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 time = { workspace = true }
+# Official Rust MCP SDK — powers `clair serve` (the typed-tool surface, ADR 0003).
+# `server` + `macros` are default; `transport-io` adds the stdio transport.
+rmcp = { version = "1.8", features = ["server", "macros", "transport-io"] }
 
 [dev-dependencies]
 cucumber = { workspace = true }

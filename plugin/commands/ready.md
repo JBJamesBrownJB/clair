@@ -4,19 +4,15 @@ description: Register yourself as available to pair in this repo, on your curren
 
 # /clair:ready
 
-Announce that the user is available to pair. Writes their entry (including the
+Announce that the user is available to pair. This writes their entry (including the
 current branch) to the `clair/ready` registry and pushes.
 
-Run the bundled binary via the plugin launcher:
-
-```
-bash "${CLAUDE_PLUGIN_ROOT}/bin/clair-launch.sh" ready
-```
+Call the clair **`ready`** MCP tool — it takes no arguments.
 
 Then report the confirmation line back to the user, e.g.:
 
 ```
-✓ You're available to pair  ·  repo: <repo>  ·  branch: <branch>
+✓ You're available to pair · repo: <repo> · branch: <branch>
 ```
 
 Notes:

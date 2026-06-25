@@ -36,7 +36,9 @@ pub enum Cmd {
     #[command(subcommand)]
     Hook(HookCmd),
 
-    /// Run the MCP server (a later slice). Stub: prints a notice and exits 2.
+    /// Run the clair MCP stdio server (the typed-tool surface; ADR 0003). The
+    /// plugin launches this once per session via `.mcp.json`; it exposes the
+    /// handshake operations as `mcp__clair__*` tools.
     Serve,
 
     /// Hidden Tier-3 stream-json asserter (NDJSON via serde_json). Later stage.
