@@ -18,6 +18,39 @@ plugin); there is no separate binary to install. **Git is the only backend**; al
 clair state lives on orphan branches (`clair/ready`, `clair/<branch>`) and is
 ephemeral — never merged, never an audit log.
 
+## Bare `/clair` — the lobby (take the user from zero to pairing)
+
+When the user types just **`/clair`** (no subcommand), or says something open-ended
+like "start clair" / "open clair", run the onboarding lobby. The goal is to get them
+from nothing to actually pairing in one step — hold their hand, don't make them read
+docs.
+
+1. **Know who they are.** Call `status`.
+   - If the alias shows `(none set …)`, they are new: ASK "What should I call you in
+     clair?" and call `init` with their answer. One short question, then continue.
+   - If an alias is already set, use it silently; do not re-ask.
+
+2. **Put them in the room.** Call `ready` (no args) so they are announced as
+   available to pair on their current branch. It is idempotent — safe every time.
+
+3. **Show the room.** Call `pair` to list who else is ready. Render one compact,
+   friendly panel:
+   - who they are, the repo, their current branch, and that they are now ● ready
+   - each peer ready to pair, with their branch (call out anyone already on the
+     user's branch)
+
+4. **Hand them the next move.**
+   - **Peers are ready:** suggest the join verbatim — e.g. "Pair with Sam:
+     `/clair:with sam`" — and offer to do it. Do NOT auto-checkout: joining switches
+     branches and can fail on a dirty tree, so let the user confirm.
+   - **Nobody yet:** reassure them they are now discoverable, and explain how a
+     teammate joins — install the clair plugin, run `/clair` (or `/clair:ready`) in
+     the same repo, and the two of you will see each other. Keep it upbeat: they are
+     set up and in the room, just waiting for company.
+
+Keep the whole thing to a short panel. This is often the first thing a new user
+sees; it should feel like being walked to the table, not handed a manual.
+
 You drive clair through a handful of slash commands (and plain English) plus two
 background hooks. The handshake operations are **typed MCP tools** served by the
 bundled `clair serve` server (wired via the plugin's `.mcp.json`); the slash
@@ -29,22 +62,25 @@ through the launcher `bash "${CLAUDE_PLUGIN_ROOT}/bin/clair-launch.sh" <args>`.
 The clair handshake is exposed as MCP tools (`init`, `ready`, `pair`, `with`,
 `status`) — refer to them by purpose; the model finds them by intent. Claude Code
 namespaces plugin tools, so they actually appear as `mcp__plugin_clair_clair__<tool>`.
-They prompt once for approval (choose "always allow"); to pre-approve, add
-`permissions.allow: ["mcp__plugin_clair_clair__*"]` (or just confirm once).
+Like any MCP tool they prompt once for approval — choose "always allow" and you are
+not asked again. There is no settings file to edit; approval is a one-tap in the
+session.
 
 ## Identity: your alias
 
 A clair user's identity is a chosen **alias** (e.g. `JB`, `Rajiv`). The alias is
 what appears as the author of shared prompts/conclusions and is how peers see each
-other. It is stored per-repo in the LOCAL git config key `clair.alias`.
+other. It is stored per-repo in a clair-owned file — `<GIT_DIR>/clair/alias` — never
+in your git config, never committed, never pushed.
 
 The same machine / same git account can act as **two different aliases in two
 sessions** — this is how a solo developer reviews the pair-brain (one session as
 `JB`, another as `Rajiv`; each sees the other). Provenance compares the resolved
 alias, so two aliases are two distinct identities.
 
-clair resolves the active alias by priority: explicit `--as <alias>` → `clair.alias`
-→ `clair.user` (legacy) → `user.name` → OS username.
+clair resolves the active alias by priority: explicit `--as <alias>` → the
+`<GIT_DIR>/clair/alias` file → `clair.user` (legacy, read-only) → `user.name` → OS
+username.
 
 ## Commands
 

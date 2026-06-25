@@ -5,7 +5,7 @@ description: Choose and persist this repo's clair alias (your identity for pairi
 # /clair:init <alias>
 
 Set the user's clair **alias** — their identity for pairing. The alias is persisted
-to this repo's LOCAL git config (`clair.alias`), so it sticks across later clair
+to a clair-owned file (`<GIT_DIR>/clair/alias`, never your git config), so it sticks across later clair
 calls. It is what peers see as the author of shared prompts/conclusions.
 
 The user typed: `/clair:init $ARGUMENTS`
