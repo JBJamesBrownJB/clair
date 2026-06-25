@@ -126,9 +126,10 @@ pub fn human_prompt_line(author: &str, text: &str) -> String {
     format!("   💬 {author} asked: \"{text}\"")
 }
 
-/// Human line for `kind=summary`.
+/// Human line for `kind=summary`. Note "'s AI": the conclusion is the AI's, not the
+/// person's — `<author> concluded` would misattribute it to the human.
 pub fn human_summary_line(author: &str, text: &str) -> String {
-    format!("   ✓ {author} concluded: \"{text}\"")
+    format!("   ✓ {author}'s AI concluded: \"{text}\"")
 }
 
 /// Human line for `kind=signal` (the text is the branch joined).
@@ -349,7 +350,7 @@ mod tests {
         let p = entry("JB", Kind::Prompt, "refactor the auth guard to use the new middleware");
         let s = entry("JB", Kind::Summary, "moved the guard into AuthMiddleware; 1 test still failing");
         let got = render_inbound_human(&[p, s]).unwrap();
-        let expected = "🤝 clair · your pair\n   💬 JB asked: \"refactor the auth guard to use the new middleware\"\n   ✓ JB concluded: \"moved the guard into AuthMiddleware; 1 test still failing\"";
+        let expected = "🤝 clair · your pair\n   💬 JB asked: \"refactor the auth guard to use the new middleware\"\n   ✓ JB's AI concluded: \"moved the guard into AuthMiddleware; 1 test still failing\"";
         assert_eq!(got, expected);
     }
 

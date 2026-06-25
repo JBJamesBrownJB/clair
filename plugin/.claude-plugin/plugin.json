@@ -1,5 +1,5 @@
 {
   "name": "clair",
   "description": "Pair with a teammate through your AI harness, over git, ephemeral, no server. Keeps two Claudes quietly aware of each other's prompts and conclusions on the same branch. Bundles the UserPromptSubmit + Stop capture/inject hooks and the /clair slash commands.",
-  "version": "0.1.4"
+  "version": "0.1.5"
 }
