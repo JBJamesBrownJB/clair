@@ -141,3 +141,4 @@
 {"id":"019f0041-765a-7712-814e-c1ec1d5a638c","author":"JB","kind":"prompt","text":"u sure","ts":"2026-06-25T19:28:37Z","turn":"35ae5f3a-a2ab-49b1-87f5-eebd40188793"}
 {"id":"019f0041-803f-72c2-a268-b34c35be5e37","author":"Rajiv","kind":"summary","text":"This is exactly the UX gap clair needs to fix. The AI-to-AI channel works; the human-to-human channel doesn't exist yet.","ts":"2026-06-25T19:28:40Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019f0041-db00-7933-abcf-009446cf40e5","author":"Rajiv","kind":"prompt","text":"reiterate the critique here then","ts":"2026-06-25T19:29:03Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
+{"id":"019f0042-0a58-7793-b763-20c86f8998a3","author":"Rajiv","kind":"summary","text":"6. **\"instant-wow\" listed in principles, never justified.** How does this architecture actually deliver it?","ts":"2026-06-25T19:29:15Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
