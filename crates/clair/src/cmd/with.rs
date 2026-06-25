@@ -10,6 +10,7 @@
 //!    `<GIT_DIR>/clair/` (worktree-correct, the SAME resolution the cursor uses),
 //! 6. print the activation line and the `claude --settings …` command.
 
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 use clair_core::entry::{Author, Entry, EntryId, Kind, Timestamp, TurnId};
@@ -17,7 +18,11 @@ use clair_core::error::CoreError;
 use clair_core::{registry, Repo};
 
 use crate::cli::WithArgs;
-use crate::cmd::{now_rfc3339, repo_from, resolve_identity, EXIT_DIRTY, EXIT_RESOLVE};
+use crate::cmd::identity;
+use crate::cmd::{now_rfc3339, repo_from, EXIT_DIRTY, EXIT_RESOLVE};
+
+/// Exit code when `with` cannot resolve MY alias and can't prompt (non-TTY).
+pub const EXIT_NO_ALIAS: i32 = 5;
 
 /// Run `clair with <handle>`. Returns the process exit code.
 pub fn run(args: &WithArgs) -> i32 {
@@ -29,6 +34,26 @@ pub fn run(args: &WithArgs) -> i32 {
             eprintln!("clair: could not determine repo: {e}");
             return 1;
         }
+    };
+
+    // 0. Resolve MY alias up front (honouring `--as`, which also persists it).
+    // Only a deliberately-chosen alias counts; if none is set we prompt on a TTY,
+    // else exit with guidance — we never silently pair as the OS login.
+    let me = match identity::resolve_explicit_and_persist(&repo, args.as_alias.as_deref()) {
+        Some(a) => a,
+        None => match prompt_for_alias() {
+            Some(a) => {
+                let _ = identity::resolve_and_persist(&repo, Some(&a));
+                a
+            }
+            None => {
+                eprintln!(
+                    "clair: no alias set. Choose one first: clair init <alias>  \
+                     (or pass --as <alias>)"
+                );
+                return EXIT_NO_ALIAS;
+            }
+        },
     };
 
     // 1. Resolve the handle.
@@ -61,8 +86,6 @@ pub fn run(args: &WithArgs) -> i32 {
             return 1;
         }
     }
-
-    let me = resolve_identity(&repo);
 
     // 4. Append the join signal to clair/<branch>.
     let ts = now_rfc3339();
@@ -173,6 +196,28 @@ fn write_session(repo: &Repo, branch: &str) -> Result<PathBuf, CoreError> {
     write_file(&settings_path, &pretty)?;
 
     Ok(settings_path)
+}
+
+/// Prompt for MY alias on a TTY (when none is set), returning the trimmed entry.
+///
+/// Returns `None` when stdin/stdout is not a terminal, so `with` exits with
+/// guidance instead of blocking.
+fn prompt_for_alias() -> Option<String> {
+    if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
+        return None;
+    }
+    print!("Choose your clair alias: ");
+    let _ = std::io::stdout().flush();
+    let mut line = String::new();
+    if std::io::stdin().read_line(&mut line).is_err() {
+        return None;
+    }
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 /// Forward-slash a path so bash on Windows accepts it.

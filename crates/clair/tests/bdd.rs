@@ -27,6 +27,14 @@ fn dev_clone(w: &mut World, handle: String, branch: String) {
     w.add_dev(&handle, &branch);
 }
 
+#[given(regex = r#"^(\w+) has a clone on branch "([^"]+)" using git account "([^"]+)"$"#)]
+fn dev_clone_account(w: &mut World, handle: String, branch: String, email: String) {
+    // The impersonation case: an explicit (possibly SHARED) git account email, with
+    // a DISTINCT clair alias = handle. Provenance keys on the alias, so two clones
+    // of one account under two aliases are two identities that see each other.
+    w.add_dev_with_account(&handle, &branch, &email);
+}
+
 #[given(regex = r#"^(\w+)'s working tree is dirty$"#)]
 fn make_dirty(w: &mut World, handle: String) {
     w.dev(&handle).dirty_tree("scratch.txt");

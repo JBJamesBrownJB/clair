@@ -6,6 +6,8 @@
 //! the same vocabulary.
 
 pub mod hook;
+pub mod identity;
+pub mod init;
 pub mod pair;
 pub mod ready;
 pub mod test_observe;
@@ -35,36 +37,14 @@ pub fn repo_from_parts(repo_root: &str, remote: &str) -> Repo {
     Repo::open(repo_root.to_string()).with_remote(remote.to_string())
 }
 
-/// Resolve the local pairing identity for this repo.
+/// Resolve the local pairing **alias** (identity) for this repo.
 ///
-/// Prefers the `clair.user` git config, then `user.name`, then the OS user, then
-/// a last-resort placeholder so the command never hard-fails on identity alone.
+/// Delegates to [`identity::resolve`] with no `--as` override, applying the full
+/// priority order: `clair.alias` → `clair.user` (legacy) → `user.name` → OS user.
+/// Commands that accept `--as` should call [`identity::resolve_and_persist`]
+/// directly so the override is honoured AND persisted for the session.
 pub fn resolve_identity(repo: &Repo) -> String {
-    if let Some(u) = git_config(repo, "clair.user") {
-        return u;
-    }
-    if let Some(u) = git_config(repo, "user.name") {
-        return u;
-    }
-    std::env::var("USERNAME")
-        .or_else(|_| std::env::var("USER"))
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "anon".to_string())
-}
-
-/// Read a single git config value, returning `None` if unset or empty.
-fn git_config(repo: &Repo, key: &str) -> Option<String> {
-    let out = repo.run(&["config", "--get", key], None).ok()?;
-    if !out.ok {
-        return None;
-    }
-    let v = out.stdout.trim();
-    if v.is_empty() {
-        None
-    } else {
-        Some(v.to_string())
-    }
+    identity::resolve(repo, None)
 }
 
 /// An RFC3339 UTC timestamp for "now", second precision (matches the wire format).

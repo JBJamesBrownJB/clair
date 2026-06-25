@@ -14,6 +14,23 @@ Run:
 clair with <handle> --json
 ```
 
+## Identity / alias
+
+`with` needs to know MY alias (so my prompts/conclusions are attributed correctly).
+It resolves by priority: explicit `--as <alias>` → `clair.alias` → `clair.user`
+(legacy) → `user.name`.
+
+Phrasing maps:
+
+- "/clair with JB" → `clair with JB`. **If no alias is set** (the binary exits
+  non-zero asking for one), ASK the user "what alias should I use?", then re-run
+  `clair with JB --as <answer>` (which also persists the alias for the session).
+- "/clair with JB as Rajiv" → `clair with JB --as Rajiv`.
+- "/clair pair with JB" → `clair with JB`.
+
+Passing `--as <alias>` overrides MY identity for this invocation AND persists it as
+`clair.alias`, so subsequent calls in the session keep it.
+
 On success the JSON contains `{ paired_with, branch, settings }`. Tell the user
 they are now on the peer's branch and pairing has started, e.g.:
 

@@ -15,21 +15,24 @@ mod cmd;
 
 use clap::Parser;
 
-use cli::{Cli, Cmd, HookCmd};
+use cli::{Cli, Cmd, HookCmd, PairArgs};
 
 fn main() {
     let cli = Cli::parse();
     let code = match &cli.cmd {
-        Cmd::Ready(args) => cmd::ready::run(args),
-        Cmd::Pair(args) => cmd::pair::run(args),
-        Cmd::With(args) => cmd::with::run(args),
-        Cmd::Hook(HookCmd::Prompt(args)) => cmd::hook::run_prompt(args),
-        Cmd::Hook(HookCmd::Stop(args)) => cmd::hook::run_stop(args),
-        Cmd::Serve => {
+        // Bare `clair` (no subcommand): run the discovery listing, plus a hint.
+        None => cmd::pair::run_bare(&PairArgs::default()),
+        Some(Cmd::Init(args)) => cmd::init::run(args),
+        Some(Cmd::Ready(args)) => cmd::ready::run(args),
+        Some(Cmd::Pair(args)) => cmd::pair::run(args),
+        Some(Cmd::With(args)) => cmd::with::run(args),
+        Some(Cmd::Hook(HookCmd::Prompt(args))) => cmd::hook::run_prompt(args),
+        Some(Cmd::Hook(HookCmd::Stop(args))) => cmd::hook::run_stop(args),
+        Some(Cmd::Serve) => {
             eprintln!("MCP serve is a later slice");
             2
         }
-        Cmd::TestObserve(args) => cmd::test_observe::run(args),
+        Some(Cmd::TestObserve(args)) => cmd::test_observe::run(args),
     };
     std::process::exit(code);
 }

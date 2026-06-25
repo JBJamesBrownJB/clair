@@ -112,6 +112,166 @@ fn read_clair_log(dir: &Path, clair_ref: &str) -> Vec<String> {
         .collect()
 }
 
+/// A clone with a git identity (email + name) but NO deliberate clair alias and
+/// NO `user.name`-as-handle expectation — used to test the "no resolvable alias"
+/// path. Only `user.email` and autocrlf are set; `user.name`/`clair.user`/
+/// `clair.alias` are deliberately absent.
+fn clone_no_alias(remote: &Path, email: &str, seed: bool) -> TempDir {
+    let dir = TempDir::new().unwrap();
+    git(dir.path(), &["init", "-b", "main"]);
+    git(dir.path(), &["config", "user.email", email]);
+    git(dir.path(), &["config", "core.autocrlf", "false"]);
+    // A name is required to commit; we set it transiently for the seed commit then
+    // unset it so resolution finds no deliberate alias.
+    git(
+        dir.path(),
+        &["remote", "add", "origin", &remote.to_string_lossy()],
+    );
+    if seed {
+        git(dir.path(), &["config", "user.name", "tmp-committer"]);
+        std::fs::write(dir.path().join("README.md"), "hi\n").unwrap();
+        git(dir.path(), &["add", "."]);
+        git(dir.path(), &["commit", "-m", "init"]);
+        git(dir.path(), &["push", "-u", "origin", "main"]);
+        git(dir.path(), &["config", "--unset", "user.name"]);
+    } else {
+        git(dir.path(), &["fetch", "origin"]);
+        git(dir.path(), &["checkout", "main"]);
+    }
+    dir
+}
+
+/// The platform "null device" path, for pointing GIT_CONFIG_GLOBAL/SYSTEM at
+/// nothing so only a clone's local config is consulted.
+fn devnull() -> &'static str {
+    if cfg!(windows) {
+        "NUL"
+    } else {
+        "/dev/null"
+    }
+}
+
+/// Read a single LOCAL git config value from a clone (trimmed; empty if unset).
+fn git_config_get(dir: &Path, key: &str) -> String {
+    let out = StdCommand::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(["config", "--local", "--get", key])
+        .output()
+        .expect("git config");
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+#[test]
+fn init_persists_alias_and_resolution_uses_it() {
+    let remote = bare_remote();
+    // A clone with no clair.alias yet (ident() sets clair.user=JB though).
+    let jb = clone(remote.path(), "JB", true);
+
+    // `clair init Pseudo` persists clair.alias = Pseudo and confirms.
+    clair(jb.path(), &["init", "Pseudo"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Pseudo"));
+    assert_eq!(git_config_get(jb.path(), "clair.alias"), "Pseudo");
+
+    // A subsequent `ready` resolves to the persisted alias (clair.alias beats the
+    // legacy clair.user=JB), so the registry row is authored by "Pseudo".
+    git(jb.path(), &["checkout", "-b", "feature/x"]);
+    git(jb.path(), &["push", "-u", "origin", "feature/x"]);
+    clair(jb.path(), &["ready"]).assert().success();
+    let lines = read_clair_log(jb.path(), "clair/ready");
+    assert_eq!(lines.len(), 1, "one ready row: {lines:?}");
+    assert!(lines[0].contains("\"Pseudo\""), "row: {}", lines[0]);
+}
+
+#[test]
+fn init_no_alias_non_tty_exits_nonzero_with_guidance() {
+    let remote = bare_remote();
+    let jb = clone(remote.path(), "JB", true);
+    // assert_cmd runs with a piped (non-TTY) stdin/stdout, so `init` with no alias
+    // must fail with guidance rather than block on a prompt.
+    clair(jb.path(), &["init"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("clair init <alias>"));
+}
+
+#[test]
+fn as_flag_overrides_and_persists_for_the_session() {
+    let remote = bare_remote();
+    let jb = clone(remote.path(), "JB", true);
+    git(jb.path(), &["checkout", "-b", "feature/login"]);
+    git(jb.path(), &["push", "-u", "origin", "feature/login"]);
+
+    // `ready --as Rajiv`: overrides identity for THIS call AND persists clair.alias.
+    clair(jb.path(), &["ready", "--as", "Rajiv"]).assert().success();
+    assert_eq!(git_config_get(jb.path(), "clair.alias"), "Rajiv");
+    let lines = read_clair_log(jb.path(), "clair/ready");
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].contains("\"Rajiv\""), "row: {}", lines[0]);
+
+    // A later call WITHOUT --as keeps the persisted alias (sticky for the session).
+    let out = clair(jb.path(), &["pair", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    // pair excludes myself: with alias Rajiv and only Rajiv in the registry, empty.
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v.as_array().unwrap().len(), 0, "Rajiv excludes self: {v}");
+}
+
+#[test]
+fn bare_clair_lists_peers_like_pair() {
+    let remote = bare_remote();
+    let jb = clone(remote.path(), "JB", true);
+    git(jb.path(), &["checkout", "-b", "feature/login"]);
+    git(jb.path(), &["push", "-u", "origin", "feature/login"]);
+    clair(jb.path(), &["ready"]).assert().success();
+
+    // Rajiv runs bare `clair` (no subcommand) → same discovery listing as `pair`,
+    // plus a one-line hint about `clair with <name>`. Bare clair has no
+    // subcommand-scoped `--repo-root`, so it operates on the current directory.
+    let rajiv = clone(remote.path(), "Rajiv", false);
+    let mut c = std::process::Command::cargo_bin("clair").unwrap();
+    c.current_dir(rajiv.path());
+    c.assert()
+        .success()
+        .stdout(predicates::str::contains("JB"))
+        .stdout(predicates::str::contains("feature/login"))
+        .stdout(predicates::str::contains("clair with"));
+}
+
+#[test]
+fn with_no_resolvable_alias_non_tty_exits_nonzero_with_guidance() {
+    let remote = bare_remote();
+    // JB announces (with a clair.user identity, fine).
+    let jb = clone(remote.path(), "JB", true);
+    git(jb.path(), &["checkout", "-b", "feature/login"]);
+    git(jb.path(), &["push", "-u", "origin", "feature/login"]);
+    clair(jb.path(), &["ready"]).assert().success();
+
+    // Rajiv's clone has NO deliberate alias (no clair.alias / clair.user / user.name)
+    // and runs under a non-TTY harness, so `with jb` must exit non-zero with
+    // guidance rather than silently pairing as the OS login or blocking on a prompt.
+    let rajiv = clone_no_alias(remote.path(), "rajiv@clair.dev", false);
+    // Isolate from this machine's global/system git config (which may carry a
+    // user.name) so "no resolvable alias" is deterministic: only local config counts.
+    clair(rajiv.path(), &["with", "jb"])
+        .env("GIT_CONFIG_GLOBAL", devnull())
+        .env("GIT_CONFIG_SYSTEM", devnull())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("clair init"));
+    // HEAD never moved — we failed before checkout.
+    assert_eq!(
+        git_out(rajiv.path(), &["rev-parse", "--abbrev-ref", "HEAD"]),
+        "main"
+    );
+}
+
 #[test]
 fn ready_registers_me_and_pair_lists_me() {
     let remote = bare_remote();

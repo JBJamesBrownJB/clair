@@ -11,13 +11,18 @@ use clap::{Args, Parser, Subcommand};
 #[derive(Debug, Parser)]
 #[command(name = "clair", version, about, long_about = None)]
 pub struct Cli {
+    /// The subcommand. Optional: bare `clair` runs the discovery listing (the
+    /// same as `clair pair`) plus a hint about `clair with <name>`.
     #[command(subcommand)]
-    pub cmd: Cmd,
+    pub cmd: Option<Cmd>,
 }
 
 /// The top-level subcommands.
 #[derive(Debug, Subcommand)]
 pub enum Cmd {
+    /// Choose and persist this repo's clair alias (your identity).
+    Init(InitArgs),
+
     /// Register me as available to pair in this repo (writes to clair/ready).
     Ready(ReadyArgs),
 
@@ -51,11 +56,48 @@ pub struct RepoArgs {
     pub remote: String,
 }
 
+impl Default for RepoArgs {
+    fn default() -> Self {
+        RepoArgs {
+            repo_root: None,
+            remote: "origin".to_string(),
+        }
+    }
+}
+
+impl Default for PairArgs {
+    fn default() -> Self {
+        PairArgs {
+            repo: RepoArgs::default(),
+            as_alias: None,
+            json: false,
+        }
+    }
+}
+
+/// `clair init [<alias>]` flags.
+#[derive(Debug, Args)]
+pub struct InitArgs {
+    /// The alias to adopt. If omitted, clair prompts on a TTY, else exits non-zero.
+    pub alias: Option<String>,
+
+    #[command(flatten)]
+    pub repo: RepoArgs,
+
+    /// Emit machine-readable JSON (`{ "alias": "…" }`) instead of the human line.
+    #[arg(long)]
+    pub json: bool,
+}
+
 /// `clair ready` flags.
 #[derive(Debug, Args)]
 pub struct ReadyArgs {
     #[command(flatten)]
     pub repo: RepoArgs,
+
+    /// Act as this alias for this invocation AND persist it (`clair.alias`).
+    #[arg(long = "as", value_name = "ALIAS")]
+    pub as_alias: Option<String>,
 
     /// Emit machine-readable JSON instead of the human line (for the Skill).
     #[arg(long)]
@@ -67,6 +109,10 @@ pub struct ReadyArgs {
 pub struct PairArgs {
     #[command(flatten)]
     pub repo: RepoArgs,
+
+    /// Act as this alias for this invocation AND persist it (`clair.alias`).
+    #[arg(long = "as", value_name = "ALIAS")]
+    pub as_alias: Option<String>,
 
     /// Emit a JSON array of ready peers instead of the human table.
     #[arg(long)]
@@ -81,6 +127,10 @@ pub struct WithArgs {
 
     #[command(flatten)]
     pub repo: RepoArgs,
+
+    /// Act as this alias for this invocation AND persist it (`clair.alias`).
+    #[arg(long = "as", value_name = "ALIAS")]
+    pub as_alias: Option<String>,
 
     /// Emit machine-readable JSON describing the session that was started.
     #[arg(long)]

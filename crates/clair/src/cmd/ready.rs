@@ -3,13 +3,15 @@
 use clair_core::registry;
 
 use crate::cli::ReadyArgs;
-use crate::cmd::{now_rfc3339, repo_from, resolve_identity};
+use crate::cmd::identity;
+use crate::cmd::{now_rfc3339, repo_from};
 
 /// Run `clair ready`. Returns the process exit code.
 pub fn run(args: &ReadyArgs) -> i32 {
     let repo = repo_from(&args.repo);
 
-    let user = resolve_identity(&repo);
+    // `--as` overrides AND persists my alias for the session.
+    let user = identity::resolve_and_persist(&repo, args.as_alias.as_deref());
     let branch = match repo.current_branch() {
         Ok(b) => b,
         Err(e) => {

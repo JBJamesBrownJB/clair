@@ -80,9 +80,20 @@ impl World {
     /// `branch`. The branch must already exist on the remote (the world seeds
     /// `main` and `feature/login`); other branches are created locally + pushed.
     pub fn add_dev(&mut self, handle: &str, branch: &str) {
+        // Default: handle and git account agree (handle@clair.dev).
+        let email = format!("{handle}@clair.dev");
+        self.add_dev_with_account(handle, branch, &email);
+    }
+
+    /// Like [`World::add_dev`] but with an EXPLICIT git account email, so two devs
+    /// can share ONE git account (same `user.email`) while keeping DISTINCT clair
+    /// aliases. This is the impersonation case: provenance keys on the alias, so a
+    /// single git account acting under two aliases yields two identities that see
+    /// each other.
+    pub fn add_dev_with_account(&mut self, handle: &str, branch: &str, email: &str) {
         let dir = TempDir::new().expect("temp clone");
         git(dir.path(), &["init", "-b", "main"]);
-        ident(dir.path(), handle);
+        ident_with_email(dir.path(), handle, email);
         git(
             dir.path(),
             &["remote", "add", "origin", &self.remote.path().to_string_lossy()],
@@ -161,9 +172,16 @@ impl World {
 
 /// Configure a clone's git identity + clair handle, autocrlf off so blobs stay LF.
 fn ident(dir: &Path, name: &str) {
-    git(dir, &["config", "user.email", &format!("{name}@clair.dev")]);
-    git(dir, &["config", "user.name", name]);
-    git(dir, &["config", "clair.user", name]);
+    ident_with_email(dir, name, &format!("{name}@clair.dev"));
+}
+
+/// Like [`ident`] but with an explicit `email`, decoupling the git ACCOUNT
+/// (`user.email`) from the clair ALIAS (`clair.user`) so two clones can share one
+/// account under two aliases — the impersonation case.
+fn ident_with_email(dir: &Path, alias: &str, email: &str) {
+    git(dir, &["config", "user.email", email]);
+    git(dir, &["config", "user.name", alias]);
+    git(dir, &["config", "clair.user", alias]);
     git(dir, &["config", "core.autocrlf", "false"]);
 }
 

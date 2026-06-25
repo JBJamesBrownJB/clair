@@ -6,10 +6,21 @@
 use clair_core::registry::{self, ReadyPeer};
 
 use crate::cli::PairArgs;
-use crate::cmd::{now_rfc3339, repo_from, resolve_identity};
+use crate::cmd::identity;
+use crate::cmd::{now_rfc3339, repo_from};
 
 /// Run `clair pair`. Returns the process exit code.
 pub fn run(args: &PairArgs) -> i32 {
+    run_inner(args, false)
+}
+
+/// Run the bare `clair` (no subcommand): the same listing as `clair pair`, plus a
+/// one-line hint about `clair with <name>`.
+pub fn run_bare(args: &PairArgs) -> i32 {
+    run_inner(args, true)
+}
+
+fn run_inner(args: &PairArgs, bare: bool) -> i32 {
     let repo = repo_from(&args.repo);
 
     let slug = match repo.repo_slug() {
@@ -20,7 +31,8 @@ pub fn run(args: &PairArgs) -> i32 {
         }
     };
 
-    let me = resolve_identity(&repo).to_ascii_lowercase();
+    // `--as` overrides AND persists my alias for the session.
+    let me = identity::resolve_and_persist(&repo, args.as_alias.as_deref()).to_ascii_lowercase();
 
     let mut peers = match registry::list(&repo, &slug) {
         Ok(p) => p,
@@ -52,6 +64,9 @@ pub fn run(args: &PairArgs) -> i32 {
 
     if peers.is_empty() {
         println!("No one is ready to pair on {slug} yet.");
+        if bare {
+            println!("Once someone is ready, join them with:  clair with <name>");
+        }
         return 0;
     }
 
@@ -60,7 +75,8 @@ pub fn run(args: &PairArgs) -> i32 {
         println!("  • {:<6}→  {}", p.user, branch_col(p));
     }
     if let Some(first) = peers.first() {
-        println!("Join with:  /clair with {}", first.user.to_ascii_lowercase());
+        let hint = if bare { "clair with" } else { "/clair with" };
+        println!("Join with:  {hint} {}", first.user.to_ascii_lowercase());
     }
     0
 }

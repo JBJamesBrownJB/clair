@@ -101,15 +101,26 @@ WORK=$(mktemp -d)
 git init --bare -b main "$WORK/remote"
 
 git clone "$WORK/remote" "$WORK/jb"
-git -C "$WORK/jb" config clair.user JB
+clair init JB --repo-root "$WORK/jb"      # persists clair.alias=JB (your identity)
 git -C "$WORK/jb" commit --allow-empty -m init
 git -C "$WORK/jb" push -u origin main
 git -C "$WORK/jb" checkout -b feature/login
 git -C "$WORK/jb" push -u origin feature/login
 
 git clone "$WORK/remote" "$WORK/rajiv"
-git -C "$WORK/rajiv" config clair.user Rajiv
+clair init Rajiv --repo-root "$WORK/rajiv"  # persists clair.alias=Rajiv
+
+# Solo review: the SAME machine / git account can act as two aliases. Both clones
+# may even share one git account (same user.email) — provenance keys on the alias,
+# so JB and Rajiv are two distinct identities that see each other. To make the two
+# clones one account, give them the same email:
+#   git -C "$WORK/jb"    config user.email solo@dev.local
+#   git -C "$WORK/rajiv" config user.email solo@dev.local
 ```
+
+> `clair init <alias>` writes the LOCAL `clair.alias` git config. You can override
+> per-invocation with `--as <alias>` on `ready`/`pair`/`with` (it also persists),
+> e.g. `clair with jb --as Rajiv`.
 
 ### Terminal A — JB (on `feature/login`)
 
