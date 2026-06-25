@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/clair-core",
+    "crates/clair",
+    "crates/clair-harness",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/clair-dev/clair"
+
+# Shared dependency versions. Member crates opt in with `dep = { workspace = true }`.
+# Versions pinned to what resolves cleanly on the project toolchain (cargo 1.96).
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+anyhow = "1"
+uuid = { version = "1", features = ["v7", "serde"] }
+time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+cucumber = "0.21"
+tempfile = "3"
+
+# Internal crates
+clair-core = { path = "crates/clair-core" }
+clair-harness = { path = "crates/clair-harness" }

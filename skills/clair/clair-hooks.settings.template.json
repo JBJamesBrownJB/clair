@@ -1,0 +1,25 @@
+{
+  "_comment": "clair hook wiring — a --settings MERGE file (Claude Code merges this with the user's settings). `clair with` generates the canonical version under <GIT_DIR>/clair/session-settings.json with absolute, forward-slashed, POSIX-quoted shim paths baked in. This template documents the shape; replace <ABS> with the absolute path to each shim (e.g. the ones in skills/clair/hooks/). On Windows, hooks invoke shell scripts via `bash \"<abs>\"`.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"<ABS>/skills/clair/hooks/user-prompt-submit.sh\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"<ABS>/skills/clair/hooks/stop.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

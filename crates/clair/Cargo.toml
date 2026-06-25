@@ -1,0 +1,34 @@
+[package]
+name = "clair"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "clair CLI + Claude Code hook-adapter subcommands. Thin surface over clair-core."
+
+[[bin]]
+name = "clair"
+path = "src/main.rs"
+
+# cucumber-rs integration-test target. harness=false because cucumber drives its own
+# runner; the suite is fleshed out by a later stage. Wired now so the seam exists.
+[[test]]
+name = "bdd"
+harness = false
+
+[dependencies]
+clair-core = { workspace = true }
+clair-harness = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+time = { workspace = true }
+
+[dev-dependencies]
+cucumber = { workspace = true }
+tokio = { workspace = true }
+assert_cmd = "2"
+predicates = "3"
+tempfile = { workspace = true }
