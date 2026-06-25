@@ -69,11 +69,16 @@ pub struct StopInput {
 
 // --- stdout shapes (the exact contract) -----------------------------------------
 
-/// The full `UserPromptSubmit` hook response carrying `additionalContext`.
+/// The full `UserPromptSubmit` hook response: `additionalContext` for the model and
+/// (when there is peer activity) a top-level `systemMessage` shown to the human.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct PromptOutput {
     #[serde(rename = "hookSpecificOutput")]
     hook_specific_output: PromptSpecific,
+    /// Shown directly to the paired developer in their terminal. Omitted when there
+    /// is nothing new to surface.
+    #[serde(rename = "systemMessage", skip_serializing_if = "Option::is_none")]
+    system_message: Option<String>,
 }
 
 /// The `hookSpecificOutput` body for `UserPromptSubmit`.
@@ -91,12 +96,13 @@ pub struct PromptSpecific {
 /// otherwise emit the empty object `{}` (no injection). The pushed-entry id never
 /// appears in stdout — it is internal bookkeeping.
 pub fn render_prompt_stdout(outcome: &HookOutcome) -> String {
-    let additional = match outcome {
+    let (additional, system) = match outcome {
         HookOutcome::Inject {
             additional_context: Some(ctx),
+            system_message,
             ..
-        } => Some(ctx.clone()),
-        _ => None,
+        } => (Some(ctx.clone()), system_message.clone()),
+        _ => (None, None),
     };
     match additional {
         Some(ctx) => {
@@ -105,6 +111,7 @@ pub fn render_prompt_stdout(outcome: &HookOutcome) -> String {
                     hook_event_name: "UserPromptSubmit".to_string(),
                     additional_context: ctx,
                 },
+                system_message: system,
             };
             serde_json::to_string(&out).unwrap_or_else(|_| "{}".to_string())
         }
@@ -283,6 +290,7 @@ mod tests {
 ─────────────────────────────────────────────────────────────────";
         let outcome = HookOutcome::Inject {
             additional_context: Some(ctx.to_string()),
+            system_message: None,
             pushed: Some(EntryId::now()),
         };
         let stdout = render_prompt_stdout(&outcome);
@@ -297,14 +305,39 @@ mod tests {
             v["hookSpecificOutput"]["additionalContext"],
             serde_json::json!(ctx)
         );
-        // Only the one key.
+        // With no human banner, only the one key (systemMessage is skipped).
         assert_eq!(v.as_object().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn prompt_stdout_emits_system_message_for_the_human() {
+        // When inbound has peer activity, the hook surfaces it to the human via a
+        // top-level `systemMessage` AND to the model via `additionalContext`.
+        let outcome = HookOutcome::Inject {
+            additional_context: Some("── shared pair context … ──".to_string()),
+            system_message: Some("🤝 clair · your pair\n   💬 JB asked: \"do the thing\"".to_string()),
+            pushed: Some(EntryId::now()),
+        };
+        let v: serde_json::Value =
+            serde_json::from_str(&render_prompt_stdout(&outcome)).unwrap();
+
+        // The human sees this line in their terminal.
+        assert_eq!(
+            v["systemMessage"],
+            serde_json::json!("🤝 clair · your pair\n   💬 JB asked: \"do the thing\"")
+        );
+        // The model still gets its background context.
+        assert_eq!(
+            v["hookSpecificOutput"]["additionalContext"],
+            serde_json::json!("── shared pair context … ──")
+        );
     }
 
     #[test]
     fn prompt_stdout_without_context_is_empty_object() {
         let outcome = HookOutcome::Inject {
             additional_context: None,
+            system_message: None,
             pushed: Some(EntryId::now()),
         };
         assert_eq!(render_prompt_stdout(&outcome), "{}");
@@ -337,6 +370,7 @@ mod tests {
 
         let outcome = HookOutcome::Inject {
             additional_context: Some(ctx.clone()),
+            system_message: None,
             pushed: None,
         };
         let stdout = render_prompt_stdout(&outcome);

@@ -57,8 +57,14 @@ pub enum HookOutcome {
     /// `UserPromptSubmit`: optional framed `additionalContext` to inject, plus the
     /// id of the prompt entry pushed (if any).
     Inject {
-        /// The framed peer context to inject, or `None` if there was nothing new.
+        /// The framed peer context to inject for the MODEL (`additionalContext`), or
+        /// `None` if there was nothing new.
         additional_context: Option<String>,
+        /// The human-facing banner to show the paired developer (top-level
+        /// `systemMessage`), or `None` if there was nothing new. Same delivered
+        /// entries as `additional_context`, framed for a person — so the pair's
+        /// activity is visible on screen, not just fed silently to the model.
+        system_message: Option<String>,
         /// The id of the `prompt` entry appended this turn (if the append ran).
         pushed: Option<EntryId>,
     },
@@ -102,11 +108,16 @@ impl<'a, B: LogSource + LogSink> HookCtx<'a, B> {
 
         // --- INBOUND: read peer deltas, render, advance the LOCAL cursor. -------
         // This writes nothing to the ref (cursor is local) — the loop-guard.
-        let additional_context = {
+        // The SAME delivered entries are rendered twice: once for the model
+        // (additionalContext) and once for the human (systemMessage).
+        let (additional_context, system_message) = {
             let reader = Store::new(&self.backend, self.author.clone(), shadow_ref.clone());
             let delivery = reader.entries_since(self.cursor)?;
             *self.cursor = delivery.next;
-            render::render_inbound(&delivery.entries)
+            (
+                render::render_inbound(&delivery.entries),
+                render::render_inbound_human(&delivery.entries),
+            )
         };
 
         // --- OUTBOUND: append exactly one prompt entry authored by me. ----------
@@ -120,6 +131,7 @@ impl<'a, B: LogSource + LogSink> HookCtx<'a, B> {
 
         Ok(HookOutcome::Inject {
             additional_context,
+            system_message,
             pushed: Some(pushed),
         })
     }
@@ -245,11 +257,16 @@ mod tests {
         match outcome {
             HookOutcome::Inject {
                 additional_context,
+                system_message,
                 pushed,
             } => {
                 let ac = additional_context.expect("JB's entry should be injected");
                 assert!(ac.contains("↪ JB asked his AI:"));
                 assert!(ac.contains("refactor the auth guard to use the new middleware"));
+                // The human-facing twin is produced alongside, for `systemMessage`.
+                let sm = system_message.expect("a human banner should accompany it");
+                assert!(sm.contains("🤝 clair · your pair"));
+                assert!(sm.contains("💬 JB asked:"));
                 assert!(pushed.is_some());
             }
             other => panic!("expected Inject, got {other:?}"),
@@ -319,8 +336,10 @@ mod tests {
 
         let outcome = hc.on_user_prompt_submit("hello").unwrap();
         match outcome {
-            HookOutcome::Inject { additional_context, pushed } => {
+            HookOutcome::Inject { additional_context, system_message, pushed } => {
                 assert_eq!(additional_context, None);
+                // Nothing inbound → no human banner either.
+                assert_eq!(system_message, None);
                 assert!(pushed.is_some());
             }
             other => panic!("expected Inject, got {other:?}"),

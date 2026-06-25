@@ -7,7 +7,7 @@
     {
       "name": "clair",
       "description": "Pair with a teammate through your AI harness, over git, ephemeral, no server. Self-contained: bundles the clair binary, the UserPromptSubmit + Stop capture/inject hooks, and the /clair slash commands.",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "source": "./plugin"
     }
   ]

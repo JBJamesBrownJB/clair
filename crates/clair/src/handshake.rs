@@ -229,7 +229,10 @@ pub fn with(
         id: EntryId::now(),
         author: Author::new(&me),
         kind: Kind::Signal,
-        text: format!("{me} joined the pair session on {target}."),
+        // The signal text IS the branch (render.rs contract); the renderers wrap it
+        // as "<author> joined … on <branch>". Storing the full sentence here double-
+        // wraps it ("… joined … on <author> joined … on <branch>").
+        text: target.clone(),
         ts: Timestamp::new(ts),
         turn: TurnId::new(format!("with-{}", EntryId::now())),
     };

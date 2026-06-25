@@ -116,6 +116,60 @@ pub fn render_inbound(entries: &[Entry]) -> Option<String> {
     }
 }
 
+/// Human-facing header for the `systemMessage` banner — what the paired developer
+/// actually reads in their terminal (distinct from the model-facing background
+/// framing of [`render_inbound`]).
+pub const HUMAN_HEADER: &str = "🤝 clair · your pair";
+
+/// Human line for `kind=prompt`.
+pub fn human_prompt_line(author: &str, text: &str) -> String {
+    format!("   💬 {author} asked: \"{text}\"")
+}
+
+/// Human line for `kind=summary`.
+pub fn human_summary_line(author: &str, text: &str) -> String {
+    format!("   ✓ {author} concluded: \"{text}\"")
+}
+
+/// Human line for `kind=signal` (the text is the branch joined).
+pub fn human_signal_line(author: &str, branch: &str) -> String {
+    format!("   🤝 {author} joined on {branch}")
+}
+
+/// The human line for a single entry, dispatched by kind.
+fn human_entry_line(e: &Entry) -> String {
+    match e.kind {
+        Kind::Prompt => human_prompt_line(e.author.as_str(), &e.text),
+        Kind::Summary => human_summary_line(e.author.as_str(), &e.text),
+        Kind::Signal => human_signal_line(e.author.as_str(), &e.text),
+    }
+}
+
+/// Render new peer `entries` into a concise, human-facing banner for `systemMessage`
+/// — the visible signal the paired developer sees in their own terminal. One header,
+/// then one line per entry, oldest-first, capped like [`render_inbound`]. Returns
+/// `None` when there is nothing to surface.
+///
+/// This is the human twin of [`render_inbound`]: the same delivered entries, framed
+/// for a person instead of the model. The hook emits BOTH — `additionalContext` for
+/// the AI, this for the human — so the pair's activity is actually visible, not just
+/// silently fed to the recipient's model.
+pub fn render_inbound_human(entries: &[Entry]) -> Option<String> {
+    if entries.is_empty() {
+        return None;
+    }
+    let kept = cap_oldest_first(entries, MAX_CONTEXT_CHARS);
+    if kept.is_empty() {
+        return None;
+    }
+    let mut lines = Vec::with_capacity(kept.len() + 1);
+    lines.push(HUMAN_HEADER.to_string());
+    for e in &kept {
+        lines.push(human_entry_line(e));
+    }
+    Some(lines.join("\n"))
+}
+
 /// Assemble one banner block: header, the lines, then the rule.
 fn framed(banner: &str, lines: &[String], rule: &str) -> String {
     let mut out = String::new();
@@ -286,6 +340,31 @@ mod tests {
         // framed line (with the leading quote) so "0-" can't match "10-".
         assert!(got.contains(&format!("\"49-{big}\"")));
         assert!(!got.contains(&format!("\"0-{big}\"")));
+    }
+
+    #[test]
+    fn human_render_is_a_concise_visible_banner() {
+        // The human twin: one header, one readable line per entry, no model-facing
+        // "background — won't act" framing.
+        let p = entry("JB", Kind::Prompt, "refactor the auth guard to use the new middleware");
+        let s = entry("JB", Kind::Summary, "moved the guard into AuthMiddleware; 1 test still failing");
+        let got = render_inbound_human(&[p, s]).unwrap();
+        let expected = "🤝 clair · your pair\n   💬 JB asked: \"refactor the auth guard to use the new middleware\"\n   ✓ JB concluded: \"moved the guard into AuthMiddleware; 1 test still failing\"";
+        assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn human_render_empty_is_none() {
+        assert_eq!(render_inbound_human(&[]), None);
+    }
+
+    #[test]
+    fn human_render_signal_joins_without_doubling_a_sentence() {
+        // The human signal line wraps the branch directly (the entry text IS the
+        // branch), so it reads cleanly: "Rajiv joined on feature/login".
+        let j = entry("Rajiv", Kind::Signal, "feature/login");
+        let got = render_inbound_human(&[j]).unwrap();
+        assert_eq!(got, "🤝 clair · your pair\n   🤝 Rajiv joined on feature/login");
     }
 
     #[test]

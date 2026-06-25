@@ -372,7 +372,10 @@ fn with_checks_out_branch_and_signals_join() {
     assert_eq!(lines.len(), 1, "one join signal: {lines:?}");
     assert!(lines[0].contains("\"signal\""), "kind=signal: {}", lines[0]);
     assert!(lines[0].contains("Rajiv"));
-    assert!(lines[0].contains("joined the pair session on feature/login"));
+    // The signal's text IS the branch (render.rs contract) — the renderers wrap it
+    // into "Rajiv joined … on feature/login", so the stored text must not itself be
+    // a sentence (that double-wrapped in production).
+    assert!(lines[0].contains("\"text\":\"feature/login\""), "text is the branch: {}", lines[0]);
 
     // `with` no longer writes any session settings or hook shims: the clair plugin
     // owns the hooks (they auto-fire). Assert NOTHING was written under <GIT_DIR>/clair.
