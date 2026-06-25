@@ -20,13 +20,71 @@ JB and Rajiv each work in their **own** Claude, both on branch `feature/login`.
 
 No new ritual: you just use Claude. clair shares your deltas and shows you theirs.
 
+## 1a. What the users see (v0 walkthrough)
+
+The agreed user experience for slice 1. *Delivery note:* incoming items surface the moment
+the recipient **next interacts** (slice-1 mechanism); true idle/live push is slice 2 (§6a, §8).
+
+**① Discovery is repo-wide and branch-aware**
+
+JB (on `feature/login`):
+```
+> /clair ready
+✓ You're available to pair  ·  repo: clair  ·  branch: feature/login
+```
+Rajiv (on a *different* branch, e.g. `main`):
+```
+> /clair pair
+People ready to pair on  clair:
+  • JB    →  feature/login     (ready 30s ago)
+  • Sam   →  fix/cache-bug     (ready 2m ago)
+Join with:  /clair with jb
+
+> /clair with jb
+↪ Switching you to feature/login (git fetch + checkout)…
+🤝 Pairing with JB on feature/login. Ephemeral — nothing is logged permanently.
+```
+JB (on his next interaction):
+```
+── clair ──────────────────────────────────
+🤝 Rajiv joined the pair session on feature/login.
+───────────────────────────────────────────
+```
+
+**② JB works — prompt shared on ask, conclusion shared on finish (two separate events)**
+
+JB (normal Claude use):
+```
+> refactor the auth guard to use the new middleware
+● I'll move the guard into AuthMiddleware…
+  [edits auth.rs, runs tests]
+● Done. Guard now in AuthMiddleware; 1 test still failing on the expired-token case.
+```
+Rajiv sees JB's **question as soon as he asks it** (not waiting for JB's AI), and the
+**conclusion when it finishes** — each injected as background, his AI does not act on it:
+```
+── shared pair context (background — your AI won't act on this) ──
+↪ JB asked his AI:  "refactor the auth guard to use the new middleware"
+─────────────────────────────────────────────────────────────────
+   …(later, when JB's reply completes)…
+── shared pair context (background — your AI won't act on this) ──
+✓ JB's AI concluded: "Moved the guard into AuthMiddleware; 1 test still failing
+   on the expired-token case."
+─────────────────────────────────────────────────────────────────
+```
+
+**③ Reciprocal** — JB sees Rajiv's prompts + conclusions the same way, on his next interaction.
+
+**Felt result:** two people, two Claudes, each silently kept aware of the other's work
+through git — no server, scoped to the branch, nothing permanent. *"My Claude already knew."*
+
 ## 2. Commands (the Agent Skill surface)
 
 | Command | Effect |
 |---------|--------|
-| `/clair ready` | Register me as **available to pair** in this repo (writes my entry to the `clair/ready` registry, pushes). |
-| `/clair pair` | Fetch the registry and **list who's ready** to pair in this repo. |
-| `/clair with rajiv` | Resolve `rajiv` to a registered user, **start a pairing session** on the current branch (signal both sides), and activate the capture+inject hooks. |
+| `/clair ready` | Register me as **available to pair** in this repo (writes my entry, **including my current branch**, to the `clair/ready` registry, pushes). |
+| `/clair pair` | Fetch the registry and **list everyone ready** to pair in this repo, **with their branch** — regardless of which branch I'm currently on. |
+| `/clair with rajiv` | Resolve `rajiv` to a registered user, **`git fetch` + check out their branch** (creating a tracking branch if needed; **stops with a clear message if my working tree is dirty** — never moves my work silently), then **start the pairing session** on that branch and activate the capture+inject hooks. |
 
 ## 3. How content actually reaches the session (confirmed mechanism)
 
@@ -122,6 +180,33 @@ flowchart TD
 { "user":"JB", "repo":"clair", "branch":"feature/login", "ts":"…" }
 ```
 
+## 6a. Keeping live delivery open (the seam that must not close)
+
+Slice 1 delivers updates by **pull at next interaction**. Slice 2 wants **push, ambient**.
+We must not build slice 1 in a way that blocks slice 2. The protection: three decoupled
+concerns, with delivery swappable.
+
+```
+Capture (hooks)  →  Store (git: append-only, addressable entries + local last-seen cursor)  →  Delivery
+                                                                                               ├ slice 1: PULL at next interaction (UserPromptSubmit hook)
+                                                                                               └ slice 2: PUSH, ambient (background watcher + Channels)
+```
+
+**Both delivery modes read the same store through one function: `entries_since(cursor)`.**
+Swapping pull → push is therefore additive, not a rewrite.
+
+Constraints slice 1 **must** honour so live stays reachable:
+- every entry carries a **monotonic id + timestamp + author** (already in the data model);
+- each consumer tracks a **local last-seen cursor**;
+- inbound delivery goes through a single `entries_since(cursor)` read, reused later by the watcher.
+
+**The watcher is a plain process, never an LLM agent.** Live delivery (slice 2) is a
+long-running `clair` process (`clair watch`/`serve`) that fetches and, on new entries,
+surfaces them via Channels. It only **detects + delivers** — it never **generates**. A
+parallel *LLM* agent "watching" is explicitly rejected: it would burn tokens, can't render
+into the main session independently, and an LLM reacting to entries re-opens the echo loop.
+See [ADR 0004](../../decisions/0004-delivery-pluggable-live-via-watcher.md).
+
 ## 7. Loop prevention (the guard, made concrete)
 
 - **Two pipes never cross:** *inbound* (fetch → display/inject) never writes; *outbound*
@@ -132,8 +217,9 @@ flowchart TD
 
 ## 8. Open questions / spikes
 
-1. **Ambient idle-push** — can a **Channel** message be made display-only (passive) so it
-   doesn't trigger the recipient's LLM? If yes, that's the path to true live updates. (→ new ADR.)
+1. **Ambient idle-push (slice 2)** — can a **Channel** message be made display-only (passive)
+   so it doesn't trigger the recipient's LLM? If yes, that's the path to true live updates via
+   the watcher. (→ [ADR 0004](../../decisions/0004-delivery-pluggable-live-via-watcher.md); spike before slice 2.)
 2. **Summarisation source** — slice 1: the skill asks Claude to emit a one-paragraph shared
    summary as the last step of each turn; the `Stop` hook captures it. (Alt: `clair` calls a
    local model.)
