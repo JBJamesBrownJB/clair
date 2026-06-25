@@ -53,13 +53,39 @@ network (breaks on restrictive corporate/VPN setups) or requires a hosted relay
 (kills the "no server, just git" promise). The local-server-per-side design avoids
 both.
 
-## Alternative delivery triggers (if the local-server route stalls)
-- **Watcher daemon + Claude Code Channels** — a background `clair` watcher polls the
-  remote shadow ref and emits a Channel message into the local session. This is what
-  ADR 0004 anticipated; Channels (`channelsEnabled` / `allowedChannelPlugins`) are
-  the harness's inbound-message surface.
-- **MCP server push notifications** — if/when server→client push lands (issue
-  #36665), the bundled clair MCP server pushes directly, no separate watcher.
+## Channels: the inbound mechanism — status (researched 2026-06-25)
+Claude Code **Channels** is exactly the inbound leg this design needs, and it is
+**live as a research preview** (requires Claude Code ≥ **v2.1.80**). A "channel" is a
+local MCP server that pushes `notifications/claude/channel` events into an OPEN
+session; the user opts in per session with `--channels` (gated by `channelsEnabled`).
+Two-way chat bridges (Telegram, Discord, iMessage) already ship as channel plugins.
+So clair would be a **one-way channel** — poll git, push new entries in. **Channels
+IS the "SSE → Claude" leg; no bespoke SSE server is needed.**
+
+**The catch — the exact leg we depend on (deliver to an _idle_ session) is the buggy
+one right now:**
+- **#61797** — MCP notifications silently dropped when delivered to an IDLE session
+  via `--channels` (literally our use case).
+- **#58469** — `--channels` and `channelsEnabled: true` both ignored on personal Max
+  accounts; inbound silently dropped.
+- #40729 / #36472 / #44283 — Discord/Telegram channel inbound not delivered.
+
+**Do NOT design around raw MCP push.** The generic "MCP server push / unsolicited
+messages" request (**#36665**) was **closed as not planned** — Channels is the
+sanctioned path. Build on Channels, not raw server→client notifications.
+
+**Verdict:** architecture validated and the mechanism exists, but it is preview-grade
+and the idle-delivery path has open defects. Building today means riding a preview
+with the precise bug we'd hit. Gate the build on (a) Claude Code ≥ v2.1.80 **and**
+(b) the idle-delivery issues (#61797, #58469) closing. Until then, slice-1's
+prompt-gated `systemMessage` delivery stands as the shipped experience.
+
+## Alternative delivery triggers (if Channels idle-delivery stays unreliable)
+- **Watcher daemon + Channels** — a background `clair` watcher polls the remote
+  shadow ref and emits a Channel notification into the local session (the
+  poll/deliver split of the leading candidate; ADR 0004 anticipated this).
+- ~~**Raw MCP server push** (issue #36665)~~ — **ruled out**: closed as not planned;
+  Channels supersedes it.
 
 ## Shadow-branch shape — an open divergence to resolve
 The two drafts disagree on keying, and this is the crux:
@@ -74,16 +100,18 @@ Per-alias vs per-branch key the brain differently. This is the same axis flagged
 building:** does ambient delivery follow the *branch you're on* (current model) or
 your *alias across branches*?
 
-## Research (art of the possible)
-- MCP **streamable HTTP / SSE** transport — the spec path for server→client streams.
-- **`claude/channel`** capability + Channels settings in Claude Code.
-- `anthropics/claude-code` issue **#36665** — "MCP server push notifications".
-- "Pulse" — a community MCP server for real-time Claude Code notifications (prior art).
+## Research trail (see the Channels status section above for findings)
+- [Channels reference — Claude Code Docs](https://code.claude.com/docs/en/channels-reference)
+- `claude/channel` capability + Channels settings (`channelsEnabled`,
+  `allowedChannelPlugins`, `--channels`).
+- Idle-delivery defects: issues #61797, #58469, #40729, #36472, #44283.
+- Raw MCP push request #36665 — **closed as not planned** (Channels supersedes).
 
 ## Open questions (union of both drafts)
-- **`claude/channel` first.** Does Claude Code already support unsolicited
-  server→client push (issue #36665)? If so the SSE transport exists and we may skip a
-  bespoke polling layer. **Check this before building anything.**
+- ~~**`claude/channel` first.**~~ **ANSWERED (2026-06-25):** Channels is live as a
+  research preview (≥ v2.1.80) and is the inbound mechanism — but idle-session
+  delivery has open bugs (see status section). The remaining gate is those bugs
+  closing, not whether the feature exists.
 - **Brain keying:** per-branch vs per-alias (the divergence above).
 - **Loop-safety under a new trigger:** re-prove an ambient inbound never causes an
   outbound write (the slice-1 guard assumed prompt/stop were the only triggers).
