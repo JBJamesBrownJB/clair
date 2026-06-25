@@ -1,2 +1,3 @@
 {"id":"019eff8b-945c-7fe1-9a15-cce7a5a0c9fa","author":"JB","kind":"prompt","text":"/clair:init PJ","ts":"2026-06-25T16:09:57Z","turn":"0e636fc7-fdcf-44f8-9253-6f8e4a22d4d6"}
 {"id":"019eff8e-dce8-77c3-b652-b680cf93fa59","author":"PJ","kind":"summary","text":"Both command tools are gated by the same classifier, which is currently down. I can't run the launcher until it recovers. Let me retry after a short pause.","ts":"2026-06-25T16:13:33Z","turn":"0e636fc7-fdcf-44f8-9253-6f8e4a22d4d6"}
+{"id":"019eff8f-46c0-7152-82ca-f33c74cf3b53","author":"PJ","kind":"prompt","text":"/clair:ready","ts":"2026-06-25T16:13:59Z","turn":"0e636fc7-fdcf-44f8-9253-6f8e4a22d4d6"}
