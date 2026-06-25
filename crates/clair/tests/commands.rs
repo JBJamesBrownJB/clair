@@ -370,7 +370,8 @@ fn with_checks_out_branch_and_signals_join() {
     assert!(lines[0].contains("Rajiv"));
     assert!(lines[0].contains("joined the pair session on feature/login"));
 
-    // Session settings + shims were written under <GIT_DIR>/clair.
+    // `with` no longer writes any session settings or hook shims: the clair plugin
+    // owns the hooks (they auto-fire). Assert NOTHING was written under <GIT_DIR>/clair.
     let git_dir = git_out(rajiv.path(), &["rev-parse", "--git-dir"]);
     let base = if Path::new(&git_dir).is_absolute() {
         std::path::PathBuf::from(&git_dir)
@@ -378,22 +379,12 @@ fn with_checks_out_branch_and_signals_join() {
         rajiv.path().join(&git_dir)
     };
     let clair_dir = base.join("clair");
-    assert!(clair_dir.join("session-settings.json").is_file());
-    assert!(clair_dir.join("prompt-hook.sh").is_file());
-    assert!(clair_dir.join("stop-hook.sh").is_file());
-
-    // The settings file references both shims via bash "<abs>".
-    let settings =
-        std::fs::read_to_string(clair_dir.join("session-settings.json")).unwrap();
-    assert!(settings.contains("UserPromptSubmit"));
-    assert!(settings.contains("Stop"));
-    assert!(settings.contains("prompt-hook.sh"));
-    assert!(settings.contains("stop-hook.sh"));
-
-    // The shims bake the branch (single source for read/write/cursor).
-    let prompt_shim = std::fs::read_to_string(clair_dir.join("prompt-hook.sh")).unwrap();
-    assert!(prompt_shim.contains("hook prompt"));
-    assert!(prompt_shim.contains("--branch \"feature/login\""));
+    assert!(
+        !clair_dir.join("session-settings.json").exists(),
+        "with must not generate a session-settings.json (plugin owns hooks)"
+    );
+    assert!(!clair_dir.join("prompt-hook.sh").exists());
+    assert!(!clair_dir.join("stop-hook.sh").exists());
 }
 
 #[test]

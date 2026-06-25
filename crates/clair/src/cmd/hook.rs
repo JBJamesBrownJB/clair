@@ -1,15 +1,22 @@
 //! The Claude Code hook adapters — pure stdin/env <-> `HookCtx` <-> stdout JSON.
 //!
 //! These subcommands carry **zero business logic** (open_risks "Adapter drift"):
-//! they parse the Claude hook JSON from stdin, build a [`HookCtx`] from the baked
-//! `--repo-root`/`--branch`, call `clair_core::hooks::*`, and serialise the
-//! outcome to the exact stdout contract. The same `clair_core::hooks` functions
-//! back the Tier-2 harness, so what we test is what runs.
+//! they parse the Claude hook JSON from stdin, build a [`HookCtx`], call
+//! `clair_core::hooks::*`, and serialise the outcome to the exact stdout contract.
+//! The same `clair_core::hooks` functions back the Tier-2 harness, so what we test
+//! is what runs.
+//!
+//! ## Self-sufficient by default
+//! The bundled Claude Code plugin wires `clair hook prompt` / `clair hook stop`
+//! with **no baked paths**. When `--repo-root` is absent the root is resolved from
+//! `$CLAUDE_PROJECT_DIR` (set by Claude Code), falling back to the cwd; when
+//! `--branch` is absent it is resolved from the current git checkout. Both flags
+//! remain optional overrides (the Tier-3 harness still passes them).
 //!
 //! ## The single branch source
-//! `--branch` is baked into the shim at `clair with` time. Within an invocation it
-//! is the one source for the read ref, the write ref AND the cursor key (via
-//! [`FileCursorStore`]), so they cannot desync — BRANCH-SCOPE by construction.
+//! The resolved branch is the one source, within an invocation, for the read ref,
+//! the write ref AND the cursor key (via [`FileCursorStore`]), so they cannot
+//! desync — BRANCH-SCOPE by construction.
 //!
 //! ## Fail-open
 //! The prompt hook is on the model's critical path. If git is slow/offline the
@@ -27,7 +34,7 @@ use clair_core::{Cursor, FileCursorStore, Repo};
 use serde::{Deserialize, Serialize};
 
 use crate::cli::HookArgs;
-use crate::cmd::{now_rfc3339, repo_from_parts, resolve_identity};
+use crate::cmd::{now_rfc3339, repo_and_branch_for_hook, resolve_identity};
 
 // --- stdin shapes (lenient: unknown fields ignored, everything Option) ----------
 
@@ -160,9 +167,10 @@ pub fn run_stop(args: &HookArgs) -> i32 {
 
 /// Build the shared pieces (repo, identity, cursor store) and run the prompt hook.
 fn run_prompt_inner(args: &HookArgs, prompt: &str, turn: TurnId) -> clair_core::Result<HookOutcome> {
-    let repo = repo_from_parts(&args.repo_root, &args.remote);
+    let (repo, branch) =
+        repo_and_branch_for_hook(args.repo_root.as_deref(), args.branch.as_deref(), &args.remote);
     let me = Author::new(resolve_identity(&repo));
-    let shadow = ShadowRef::context(args.branch.clone());
+    let shadow = ShadowRef::context(branch.clone());
 
     let mut cursor_store = cursor_store(&repo)?;
     let mut cursor = cursor_store.load(&shadow)?;
@@ -170,7 +178,7 @@ fn run_prompt_inner(args: &HookArgs, prompt: &str, turn: TurnId) -> clair_core::
     let mut hc = HookCtx {
         backend: repo,
         author: me,
-        branch: args.branch.clone(),
+        branch,
         cursor: &mut cursor,
         now: Timestamp::new(now_rfc3339()),
         turn,
@@ -188,7 +196,8 @@ fn run_stop_inner(
     transcript: &Transcript,
     turn: TurnId,
 ) -> clair_core::Result<HookOutcome> {
-    let repo = repo_from_parts(&args.repo_root, &args.remote);
+    let (repo, branch) =
+        repo_and_branch_for_hook(args.repo_root.as_deref(), args.branch.as_deref(), &args.remote);
     let me = Author::new(resolve_identity(&repo));
     // Stop reads no peer entries, so the cursor is irrelevant; pass a throwaway.
     let mut cursor = Cursor::Start;
@@ -196,7 +205,7 @@ fn run_stop_inner(
     let mut hc = HookCtx {
         backend: repo,
         author: me,
-        branch: args.branch.clone(),
+        branch,
         cursor: &mut cursor,
         now: Timestamp::new(now_rfc3339()),
         turn,

@@ -92,6 +92,64 @@ fn run_hook(dir: &Path, which: &str, branch: &str, stdin: &str) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
+/// Run `clair hook <which>` with NO `--repo-root` / `--branch` (the self-sufficient
+/// plugin path). The repo root is supplied via `CLAUDE_PROJECT_DIR` and the branch
+/// is left to be resolved from the checkout. Returns trimmed stdout; asserts exit 0.
+fn run_hook_self_sufficient(dir: &Path, which: &str, stdin: &str) -> String {
+    let mut child = StdCommand::cargo_bin("clair")
+        .unwrap()
+        .args(["hook", which])
+        .env("CLAUDE_PROJECT_DIR", dir)
+        // cwd intentionally elsewhere to prove CLAUDE_PROJECT_DIR (not cwd) is used.
+        .current_dir(std::env::temp_dir())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn clair hook");
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(stdin.as_bytes())
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert!(
+        out.status.success(),
+        "hook {which} must exit 0 (fail-open); stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+/// Run `clair hook <which>` with NO flags AND no `CLAUDE_PROJECT_DIR`, relying on
+/// the cwd fallback. The child's cwd is set to `dir`.
+fn run_hook_cwd_fallback(dir: &Path, which: &str, stdin: &str) -> String {
+    let mut child = StdCommand::cargo_bin("clair")
+        .unwrap()
+        .args(["hook", which])
+        .env_remove("CLAUDE_PROJECT_DIR")
+        .current_dir(dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn clair hook");
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(stdin.as_bytes())
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert!(
+        out.status.success(),
+        "hook {which} must exit 0 (fail-open); stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
 fn read_clair_log(dir: &Path, clair_ref: &str) -> Vec<String> {
     let refspec = format!("+refs/heads/{clair_ref}:refs/remotes/origin/{clair_ref}");
     let _ = StdCommand::new("git")
@@ -337,4 +395,68 @@ fn malformed_stdin_fails_open_with_empty_object() {
     // Garbage stdin: the hook must not crash; it emits {} and exits 0.
     let stdout = run_hook(jb.path(), "prompt", "feature/login", "not json at all");
     assert_eq!(stdout, "{}");
+}
+
+#[test]
+fn prompt_hook_resolves_root_from_claude_project_dir_and_current_branch() {
+    // The self-sufficient plugin path: no --repo-root, no --branch. The root comes
+    // from CLAUDE_PROJECT_DIR and the branch from the checkout (feature/login).
+    let remote = bare_remote();
+    let jb = clone(remote.path(), "JB", true);
+    on_feature(jb.path());
+
+    let stdout = run_hook_self_sufficient(
+        jb.path(),
+        "prompt",
+        &prompt_json("s1", "refactor the auth guard via the plugin path"),
+    );
+    assert_eq!(stdout, "{}", "no peer entries yet → empty object");
+
+    // The entry must land on clair/feature/login (current-branch resolution),
+    // proving the branch was read from HEAD, not a baked flag.
+    let lines = read_clair_log(jb.path(), "clair/feature/login");
+    assert_eq!(lines.len(), 1, "one prompt entry on the current branch: {lines:?}");
+    assert!(lines[0].contains("refactor the auth guard via the plugin path"));
+    assert!(lines[0].contains("\"JB\""));
+}
+
+#[test]
+fn prompt_hook_resolves_root_from_cwd_when_no_env_and_branch_from_head() {
+    // No CLAUDE_PROJECT_DIR either: the root falls back to the cwd, branch to HEAD.
+    let remote = bare_remote();
+    let jb = clone(remote.path(), "JB", true);
+    on_feature(jb.path());
+
+    let stdout = run_hook_cwd_fallback(
+        jb.path(),
+        "prompt",
+        &prompt_json("s1", "prompt via cwd fallback"),
+    );
+    assert_eq!(stdout, "{}");
+
+    let lines = read_clair_log(jb.path(), "clair/feature/login");
+    assert_eq!(lines.len(), 1, "entry on the current branch via cwd: {lines:?}");
+    assert!(lines[0].contains("prompt via cwd fallback"));
+}
+
+#[test]
+fn stop_hook_resolves_root_and_branch_self_sufficiently() {
+    // The Stop hook is likewise self-sufficient via CLAUDE_PROJECT_DIR + HEAD.
+    let remote = bare_remote();
+    let jb = clone(remote.path(), "JB", true);
+    on_feature(jb.path());
+
+    let transcript = write_transcript(
+        jb.path(),
+        "s1.jsonl",
+        "Moved the guard into AuthMiddleware; 1 test still failing on the expired-token case.",
+    );
+    let stdout =
+        run_hook_self_sufficient(jb.path(), "stop", &stop_json("s1", &transcript, false));
+    assert_eq!(stdout, "{}");
+
+    let lines = read_clair_log(jb.path(), "clair/feature/login");
+    assert_eq!(lines.len(), 1, "one summary entry via self-sufficient stop: {lines:?}");
+    assert!(lines[0].contains("\"summary\""));
+    assert!(lines[0].contains("Moved the guard into AuthMiddleware"));
 }

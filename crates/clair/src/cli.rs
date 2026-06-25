@@ -146,15 +146,24 @@ pub enum HookCmd {
     Stop(HookArgs),
 }
 
-/// Flags shared by the hook adapters: the baked repo root and branch.
+/// Flags shared by the hook adapters: the repo root and branch.
+///
+/// Both `--repo-root` and `--branch` are **optional overrides**. When absent the
+/// hook is self-sufficient — it resolves the repo root from the `CLAUDE_PROJECT_DIR`
+/// env var (set by Claude Code when running a plugin hook), falling back to the
+/// current working directory, and resolves the branch from the current git
+/// checkout (`git rev-parse --abbrev-ref HEAD`). This is what lets the bundled
+/// plugin hooks fire with no baked paths. The Tier-3 harness still passes both
+/// explicitly.
 #[derive(Debug, Args)]
 pub struct HookArgs {
-    /// The repo root the hook operates against.
+    /// Override the repo root (else `$CLAUDE_PROJECT_DIR`, else the cwd).
     #[arg(long, value_name = "PATH")]
-    pub repo_root: String,
-    /// The single branch source (read ref + write ref + cursor key).
+    pub repo_root: Option<String>,
+    /// Override the branch (else the current git branch). The single source for
+    /// the read ref + write ref + cursor key.
     #[arg(long, value_name = "BRANCH")]
-    pub branch: String,
+    pub branch: Option<String>,
     /// The git remote.
     #[arg(long, value_name = "REMOTE", default_value = "origin")]
     pub remote: String,

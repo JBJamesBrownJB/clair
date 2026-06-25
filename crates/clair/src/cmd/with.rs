@@ -6,12 +6,15 @@
 //! 3. `git fetch` + checkout the peer's branch (tracking branch if needed),
 //! 4. append a `kind=signal` "joined" entry to `clair/<branch>` and push, so the
 //!    peer sees the join framed under the `── clair ──` banner on their next turn,
-//! 5. write `session-settings.json` + the prompt/stop hook shims under
-//!    `<GIT_DIR>/clair/` (worktree-correct, the SAME resolution the cursor uses),
-//! 6. print the activation line and the `claude --settings …` command.
+//! 5. print the activation line.
+//!
+//! `with` does NOT wire any hooks. The capture+inject hooks are bundled in the
+//! clair Claude Code **plugin** (`plugin/hooks/hooks.json`) and auto-fire whenever
+//! the plugin is enabled — no per-session settings file, no generated shims. The
+//! hook subcommands are self-sufficient: they resolve the repo root from
+//! `$CLAUDE_PROJECT_DIR` and the branch from the current checkout.
 
 use std::io::{IsTerminal, Write};
-use std::path::{Path, PathBuf};
 
 use clair_core::entry::{Author, Entry, EntryId, Kind, Timestamp, TurnId};
 use clair_core::error::CoreError;
@@ -104,21 +107,12 @@ pub fn run(args: &WithArgs) -> i32 {
         }
     }
 
-    // 5. Write the session settings + hook shims under <GIT_DIR>/clair.
-    let settings_path = match write_session(&repo, &target) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("clair: could not write session settings: {e}");
-            return 1;
-        }
-    };
-
-    // 6. Activation output.
+    // 5. Activation output. The hooks are wired by the clair plugin (auto-fire);
+    // `with` only switches the branch and signals the join.
     if args.json {
         let v = serde_json::json!({
             "paired_with": peer.user,
             "branch": target,
-            "settings": settings_path.to_string_lossy(),
         });
         println!("{v}");
     } else {
@@ -126,76 +120,8 @@ pub fn run(args: &WithArgs) -> i32 {
             "🤝 Pairing with {} on {target}. Ephemeral — nothing is logged permanently.",
             peer.user
         );
-        println!("claude --settings \"{}\"", settings_path.to_string_lossy());
     }
     0
-}
-
-/// The directory under the git dir where clair keeps per-branch local state.
-fn clair_state_dir(repo: &Repo) -> Result<PathBuf, CoreError> {
-    let dir = repo.git_dir()?.join("clair");
-    std::fs::create_dir_all(&dir).map_err(|e| CoreError::Io(e.to_string()))?;
-    Ok(dir)
-}
-
-/// Write `session-settings.json` plus the `prompt-hook.sh`/`stop-hook.sh` shims
-/// under `<GIT_DIR>/clair/`. Returns the settings-file path.
-///
-/// The shims bake `--repo-root` and `--branch`, so the branch is the single
-/// source for the read ref, write ref and cursor key for the whole session.
-fn write_session(repo: &Repo, branch: &str) -> Result<PathBuf, CoreError> {
-    let dir = clair_state_dir(repo)?;
-
-    // Resolve the repo root to an absolute, forward-slashed path for bash on Windows.
-    let abs_root = repo
-        .run(&["rev-parse", "--show-toplevel"], None)
-        .ok()
-        .filter(|o| o.ok)
-        .map(|o| o.stdout.trim().to_string())
-        .unwrap_or_else(|| repo.root().to_string_lossy().to_string());
-    let abs_root = posix(&abs_root);
-
-    let exe = std::env::current_exe()
-        .map(|p| posix(&p.to_string_lossy()))
-        .unwrap_or_else(|_| "clair".to_string());
-
-    // The two shims. Each is one line: exec the real clair binary with the branch
-    // baked in. stdin is passed through untouched by exec.
-    let prompt_shim = format!(
-        "#!/usr/bin/env bash\nexec \"{exe}\" hook prompt --repo-root \"{abs_root}\" --branch \"{branch}\"\n"
-    );
-    let stop_shim = format!(
-        "#!/usr/bin/env bash\nexec \"{exe}\" hook stop --repo-root \"{abs_root}\" --branch \"{branch}\"\n"
-    );
-
-    let prompt_path = dir.join("prompt-hook.sh");
-    let stop_path = dir.join("stop-hook.sh");
-    write_file(&prompt_path, &prompt_shim)?;
-    write_file(&stop_path, &stop_shim)?;
-
-    // The --settings merge file. Commands invoke the shims via `bash "<abs>"`.
-    let settings = serde_json::json!({
-        "hooks": {
-            "UserPromptSubmit": [{
-                "hooks": [{
-                    "type": "command",
-                    "command": format!("bash \"{}\"", posix(&prompt_path.to_string_lossy()))
-                }]
-            }],
-            "Stop": [{
-                "hooks": [{
-                    "type": "command",
-                    "command": format!("bash \"{}\"", posix(&stop_path.to_string_lossy()))
-                }]
-            }]
-        }
-    });
-    let settings_path = dir.join("session-settings.json");
-    let pretty = serde_json::to_string_pretty(&settings)
-        .map_err(|e| CoreError::Serde(e.to_string()))?;
-    write_file(&settings_path, &pretty)?;
-
-    Ok(settings_path)
 }
 
 /// Prompt for MY alias on a TTY (when none is set), returning the trimmed entry.
@@ -218,13 +144,4 @@ fn prompt_for_alias() -> Option<String> {
     } else {
         Some(trimmed.to_string())
     }
-}
-
-/// Forward-slash a path so bash on Windows accepts it.
-fn posix(p: &str) -> String {
-    p.replace('\\', "/")
-}
-
-fn write_file(path: &Path, contents: &str) -> Result<(), CoreError> {
-    std::fs::write(path, contents).map_err(|e| CoreError::Io(e.to_string()))
 }

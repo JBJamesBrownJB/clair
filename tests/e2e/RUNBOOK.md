@@ -87,11 +87,18 @@ clair test-observe assert-additional-context "..."  < stream.ndjson
 
 ---
 
-## 2. Manual two-terminal walkthrough
+## 2. Manual two-terminal walkthrough (the PLUGIN flow)
 
 Use this to *feel* the slice-1 moment live, with two real Claude sessions on two
-clones of one remote. Pick any remote you can push to (a throwaway GitHub repo or a
-local bare repo). Below uses a local bare repo so it works fully offline.
+clones of one remote. The hooks come from the clair **plugin** — there is no
+`--settings` file and no generated shims. Below uses a local bare repo so it works
+fully offline.
+
+The clair binary used by the walkthrough's `clair init`/`ready`/`pair` calls is the
+same one the plugin bundles; either put `target/release/clair` on PATH for these
+shell calls, or run the bundled launcher
+(`plugin/bin/clair-launch.sh`). Inside Claude, all clair calls go through the plugin
+launcher automatically.
 
 ### One-time setup
 
@@ -122,19 +129,29 @@ clair init Rajiv --repo-root "$WORK/rajiv"  # persists clair.alias=Rajiv
 > per-invocation with `--as <alias>` on `ready`/`pair`/`with` (it also persists),
 > e.g. `clair with jb --as Rajiv`.
 
+The plugin hooks self-resolve: each hook reads the repo root from
+`$CLAUDE_PROJECT_DIR` (which Claude Code sets to the project you launched it in) and
+the branch from the current checkout. Launch each `claude` from inside the relevant
+clone so the hook scopes to that clone's branch.
+
+### Either: install the plugin once, or point at the checkout
+
+```bash
+# Production install (inside any Claude session):
+#   /plugin marketplace add JBJamesBrownJB/clair
+#   /plugin install clair@clair
+#
+# Local dev — load the plugin straight from the checkout (commands AND hooks):
+PLUGIN=/path/to/clair/plugin     # the repo's plugin/ dir
+```
+
 ### Terminal A — JB (on `feature/login`)
 
 ```bash
 cd "$WORK/jb"
 clair ready                     # "✓ You're available to pair · repo: … · branch: feature/login"
 
-# Wire JB's hooks for a manual session (clair with normally does this for you;
-# here we point a session-settings file at the baked shims directly):
-clair with rajiv --json 2>/dev/null || true   # optional once Rajiv is ready
-# If pairing peer-to-peer manually, you can also hand-write a --settings file
-# from skills/clair/clair-hooks.settings.template.json with the abs shim paths.
-
-claude --settings "$WORK/jb/.git/clair/session-settings.json"
+claude --plugin-dir "$PLUGIN"   # (or, if installed, just: claude)
 > refactor the auth guard to use the new middleware
 ```
 
@@ -144,10 +161,10 @@ claude --settings "$WORK/jb/.git/clair/session-settings.json"
 cd "$WORK/rajiv"
 clair pair                      # lists JB → feature/login
 clair with jb                   # fetch + checkout feature/login (refuses if dirty),
-                                # writes Rajiv's session-settings.json + shims,
                                 # appends a "Rajiv joined" signal entry
+                                # (no settings/shims — the plugin owns the hooks)
 
-claude --settings "$WORK/rajiv/.git/clair/session-settings.json"
+claude --plugin-dir "$PLUGIN"   # (or, if installed, just: claude)
 > what's the state of the auth work?
 ```
 
