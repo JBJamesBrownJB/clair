@@ -102,3 +102,4 @@
 {"id":"019f0012-2684-7342-a05a-f1500cbbdb01","author":"JB","kind":"summary","text":"That's it — you don't need to do anything.","ts":"2026-06-25T18:36:57Z","turn":"35ae5f3a-a2ab-49b1-87f5-eebd40188793"}
 {"id":"019f0012-4ac3-72a3-a1d3-deb64289cfcb","author":"Rajiv","kind":"prompt","text":"what is the other session going on about?","ts":"2026-06-25T18:37:06Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019f0012-5e0a-7841-80fb-2887235ba9df","author":"Rajiv","kind":"summary","text":"JB asked \"what? in english please\" and his AI basically said \"don't worry about it, it's done.\"","ts":"2026-06-25T18:37:11Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
+{"id":"019f0013-390c-7640-98ea-66357b892efb","author":"JB","kind":"prompt","text":"No, I think the architectuerof a local httm mcp long polling git via clair cli and then sse to local claude is right no?","ts":"2026-06-25T18:38:06Z","turn":"35ae5f3a-a2ab-49b1-87f5-eebd40188793"}
