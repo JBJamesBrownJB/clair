@@ -62,7 +62,6 @@ flowchart TB
   subgraph WORK["working history — normal git, clair never writes here"]
     direction LR
     main["main"] --> feat["feature/login"]
-    feat -. "live pair branch (SPECULATIVE)" .-> pairb["pair/login"]
   end
   subgraph SHADOW["clair-owned orphan refs — never merged, ephemeral"]
     direction LR
@@ -74,9 +73,10 @@ flowchart TB
 
 - **Identity / cursor are local-only**, in `.git/clair/` — `alias` and
   `cursor-<branch>` — never pushed (see [ADR 0005](../decisions/0005-identity-alias-with-teams-deferred.md)).
-- **Pair branch** ([idea](../features/ideas/pair-branch.md)) is a *separate*,
-  speculative layer: branch off the peer's branch and pull aggressively to keep each
-  other's **code** live — distinct from sharing AI context.
+- **Live code sync** via a pair branch was considered and **ruled out**
+  ([why](../features/ideas/pair-branch.md)): git is a poor live-co-edit medium, it is
+  not clair's differentiator (Live Share et al. own that space), and it fights the
+  never-touch-uncommitted-work rule. clair shares *AI context*, not bytes.
 
 ---
 
@@ -218,6 +218,6 @@ local cursor; TTLs are guesses.
 ## Idea backlog (`features/ideas/`)
 [push-updates](../features/ideas/push-updates.md) (ambient delivery via Channels) ·
 [lifecycle](../features/ideas/lifecycle.md) (cleanup) ·
-[pair-branch](../features/ideas/pair-branch.md) (live code sync) ·
+[pair-branch](../features/ideas/pair-branch.md) (live code sync — RULED OUT) ·
 [teams](../features/ideas/teams.md) · [chat](../features/ideas/chat.md) ·
 [context-sync](../features/ideas/context-sync.md)
