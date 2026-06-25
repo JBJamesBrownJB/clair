@@ -42,3 +42,4 @@
 {"id":"019effef-20ed-7830-bd07-1e6382159cb7","author":"Rajiv","kind":"prompt","text":"/clair:pair","ts":"2026-06-25T17:58:41Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019effef-3f54-7f00-ba6e-78d53d6ab92a","author":"Rajiv","kind":"summary","text":"Join with: `/clair:with JB`","ts":"2026-06-25T17:58:49Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019effef-7890-7560-b83b-6fb0bd2da780","author":"Rajiv","kind":"prompt","text":"/clair:with JB","ts":"2026-06-25T17:59:04Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
+{"id":"019effef-9a85-7812-b23b-6a3582b638ab","author":"Rajiv","kind":"signal","text":"Rajiv joined the pair session on main.","ts":"2026-06-25T17:59:13Z","turn":"with-019effef-9a85-7812-b23b-6a4398436d33"}
