@@ -160,3 +160,4 @@
 {"id":"019f008f-f934-7421-931b-a58aa4f237aa","author":"Rajiv","kind":"prompt","text":"now what are they doing?","ts":"2026-06-25T20:54:22Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019f0090-16bb-7092-a88f-a33bb00b5f5a","author":"Rajiv","kind":"summary","text":"So they're planning the fix for that right now.","ts":"2026-06-25T20:54:30Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019f0090-48b5-7163-9e45-6ff7e0856506","author":"Rajiv","kind":"prompt","text":"what did they push","ts":"2026-06-25T20:54:42Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
+{"id":"019f0090-bb1f-7e32-a38f-01d9895c8df8","author":"Rajiv","kind":"summary","text":"One thing to watch: the commit message is just \"poc complete\" — 468 lines across 15 files deserves better than that. If this is going anywhere public, that needs splitting into logical commits with real messages.","ts":"2026-06-25T20:55:12Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
