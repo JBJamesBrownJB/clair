@@ -48,22 +48,22 @@ risks the echo loop. → tracked as a spike (§8), not built here.
 ```mermaid
 sequenceDiagram
     actor JB
-    participant JBC as JB's Claude<br/>(clair hooks)
-    participant G as Shadow branch<br/>clair/&lt;branch&gt; (remote)
-    participant RC as Rajiv's Claude<br/>(clair hooks)
+    participant JBC as JB's Claude (hooks)
+    participant G as Shadow branch (remote)
+    participant RC as Rajiv's Claude (hooks)
     actor Rajiv
 
     JB->>JBC: submits a prompt
-    Note over JBC: UserPromptSubmit hook
-    JBC->>G: push {author:JB, kind:prompt,<br/>"JB asked his AI: ..."}
+    Note over JBC: UserPromptSubmit hook fires
+    JBC->>G: push prompt entry (JB asked his AI ...)
     JBC-->>JB: LLM works the prompt
-    Note over RC: Rajiv's next UserPromptSubmit hook<br/>fetches + injects (passive)
-    G-->>RC: new entry (JB's prompt)
-    RC-->>Rajiv: "↪ JB asked his AI: ..."
-    Note over JBC: Stop hook → distil final reply
-    JBC->>G: push {author:JB, kind:summary,<br/>"<one paragraph>"}
-    G-->>RC: new entry (JB's summary)
-    RC-->>Rajiv: "✓ JB's AI concluded: <paragraph>"
+    Note over RC: Rajiv's next prompt - hook fetches and injects (passive)
+    G-->>RC: deliver JB's prompt entry
+    RC-->>Rajiv: shows "JB asked his AI ..."
+    Note over JBC: Stop hook distils the final reply
+    JBC->>G: push summary entry (one paragraph)
+    G-->>RC: deliver JB's summary entry
+    RC-->>Rajiv: shows "JB's AI concluded ..."
 ```
 
 ## 5. Components
