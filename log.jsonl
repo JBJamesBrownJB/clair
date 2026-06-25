@@ -35,3 +35,4 @@
 {"id":"019effed-f673-7823-95e6-643fb0e7b746","author":"Rajiv","kind":"summary","text":"No handle was provided. Run `/clair:pair` to see who's available, then `/clair:with <handle>` — e.g. `/clair:with JB`.","ts":"2026-06-25T17:57:25Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019effee-254c-7251-bdfa-bfc21ddd4e52","author":"Rajiv","kind":"prompt","text":"/clair:pair","ts":"2026-06-25T17:57:37Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019effee-530f-75f0-a676-515a88b4970b","author":"Rajiv","kind":"summary","text":"Nobody is ready to pair right now. Run `/clair:ready` to make yourself available so JB (or others) can join you.","ts":"2026-06-25T17:57:49Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
+{"id":"019effee-791c-7741-9363-ae630beed78e","author":"JB","kind":"prompt","text":"/clair:ready","ts":"2026-06-25T17:57:58Z","turn":"35ae5f3a-a2ab-49b1-87f5-eebd40188793"}
