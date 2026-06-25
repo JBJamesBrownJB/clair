@@ -41,15 +41,25 @@ fn temp_repo() -> tempfile::TempDir {
     dir
 }
 
-/// Read one trimmed LOCAL git config value (empty if unset).
-fn git_config_get(dir: &Path, key: &str) -> String {
+/// Read clair's persisted alias from `<GIT_DIR>/clair/alias` (trimmed; empty if
+/// unset). The alias lives in clair's own file — never git config.
+fn read_alias(dir: &Path) -> String {
     let out = StdCommand::new("git")
         .arg("-C")
         .arg(dir)
-        .args(["config", "--local", "--get", key])
+        .args(["rev-parse", "--git-dir"])
         .output()
-        .expect("git config");
-    String::from_utf8_lossy(&out.stdout).trim().to_string()
+        .expect("git rev-parse --git-dir");
+    let git_dir = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let base = if Path::new(&git_dir).is_absolute() {
+        std::path::PathBuf::from(&git_dir)
+    } else {
+        dir.join(&git_dir)
+    };
+    std::fs::read_to_string(base.join("clair").join("alias"))
+        .unwrap_or_default()
+        .trim()
+        .to_string()
 }
 
 /// A line-delimited JSON-RPC client over the server's stdin/stdout.
@@ -191,10 +201,11 @@ fn serve_speaks_mcp_lists_tools_and_calls_init() {
 
     rpc.shutdown();
 
-    // The alias was actually persisted to the project repo's local config.
+    // The alias was actually persisted to clair's own file (<GIT_DIR>/clair/alias),
+    // not the user's git config.
     assert_eq!(
-        git_config_get(repo.path(), "clair.alias"),
+        read_alias(repo.path()),
         "SmokeBot",
-        "init tool persisted clair.alias"
+        "init tool persisted the alias to <GIT_DIR>/clair/alias"
     );
 }

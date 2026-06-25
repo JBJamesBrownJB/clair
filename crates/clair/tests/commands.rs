@@ -151,31 +151,35 @@ fn devnull() -> &'static str {
     }
 }
 
-/// Read a single LOCAL git config value from a clone (trimmed; empty if unset).
-fn git_config_get(dir: &Path, key: &str) -> String {
-    let out = StdCommand::new("git")
-        .arg("-C")
-        .arg(dir)
-        .args(["config", "--local", "--get", key])
-        .output()
-        .expect("git config");
-    String::from_utf8_lossy(&out.stdout).trim().to_string()
+/// Read clair's persisted alias from `<GIT_DIR>/clair/alias` (trimmed; empty if
+/// unset). The alias lives in clair's own file — never git config.
+fn read_alias(dir: &Path) -> String {
+    let git_dir = git_out(dir, &["rev-parse", "--git-dir"]);
+    let base = if Path::new(&git_dir).is_absolute() {
+        std::path::PathBuf::from(&git_dir)
+    } else {
+        dir.join(&git_dir)
+    };
+    std::fs::read_to_string(base.join("clair").join("alias"))
+        .unwrap_or_default()
+        .trim()
+        .to_string()
 }
 
 #[test]
 fn init_persists_alias_and_resolution_uses_it() {
     let remote = bare_remote();
-    // A clone with no clair.alias yet (ident() sets clair.user=JB though).
+    // A clone with no clair alias yet (ident() sets clair.user=JB though).
     let jb = clone(remote.path(), "JB", true);
 
-    // `clair init Pseudo` persists clair.alias = Pseudo and confirms.
+    // `clair init Pseudo` persists the alias to <GIT_DIR>/clair/alias and confirms.
     clair(jb.path(), &["init", "Pseudo"])
         .assert()
         .success()
         .stdout(predicates::str::contains("Pseudo"));
-    assert_eq!(git_config_get(jb.path(), "clair.alias"), "Pseudo");
+    assert_eq!(read_alias(jb.path()), "Pseudo");
 
-    // A subsequent `ready` resolves to the persisted alias (clair.alias beats the
+    // A subsequent `ready` resolves to the persisted alias (the alias file beats the
     // legacy clair.user=JB), so the registry row is authored by "Pseudo".
     git(jb.path(), &["checkout", "-b", "feature/x"]);
     git(jb.path(), &["push", "-u", "origin", "feature/x"]);
@@ -204,9 +208,9 @@ fn as_flag_overrides_and_persists_for_the_session() {
     git(jb.path(), &["checkout", "-b", "feature/login"]);
     git(jb.path(), &["push", "-u", "origin", "feature/login"]);
 
-    // `ready --as Rajiv`: overrides identity for THIS call AND persists clair.alias.
+    // `ready --as Rajiv`: overrides identity for THIS call AND persists the alias.
     clair(jb.path(), &["ready", "--as", "Rajiv"]).assert().success();
-    assert_eq!(git_config_get(jb.path(), "clair.alias"), "Rajiv");
+    assert_eq!(read_alias(jb.path()), "Rajiv");
     let lines = read_clair_log(jb.path(), "clair/ready");
     assert_eq!(lines.len(), 1);
     assert!(lines[0].contains("\"Rajiv\""), "row: {}", lines[0]);

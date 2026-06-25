@@ -75,7 +75,7 @@ impl HandshakeError {
 /// Result of [`init`]: the alias that was persisted.
 #[derive(Debug, Clone)]
 pub struct InitResult {
-    /// The alias now persisted to `clair.alias` for this repo.
+    /// The alias now persisted to `<GIT_DIR>/clair/alias` for this repo.
     pub alias: String,
 }
 
@@ -125,7 +125,7 @@ pub struct StatusResult {
     pub peers_ready: usize,
 }
 
-/// `init` — persist `alias` as this repo's clair identity (`clair.alias`).
+/// `init` — persist `alias` as this repo's clair identity (`<GIT_DIR>/clair/alias`).
 ///
 /// The alias is trimmed; an empty alias is a [`HandshakeError::Other`].
 pub fn init(repo: &Repo, alias: &str) -> std::result::Result<InitResult, HandshakeError> {
@@ -144,7 +144,7 @@ pub fn init(repo: &Repo, alias: &str) -> std::result::Result<InitResult, Handsha
 /// `ready` — announce me as available to pair on the current branch.
 ///
 /// `as_alias` is an optional `--as`/`as_alias` override that, when present, is
-/// resolved AND persisted as `clair.alias` for the session.
+/// resolved AND persisted to the alias file for the session.
 pub fn ready(
     repo: &Repo,
     as_alias: Option<&str>,
@@ -371,7 +371,7 @@ mod git_tests {
         git(repo.root(), &["checkout", "-b", "feature/x"]);
         git(repo.root(), &["push", "-u", "origin", "feature/x"]);
         let r = ready(&repo, None).unwrap();
-        // clair.alias persisted by init beats the legacy clair.user.
+        // The alias persisted by init (to <GIT_DIR>/clair/alias) beats clair.user.
         assert_eq!(r.user, "Pseudo");
         assert_eq!(r.branch, "feature/x");
     }

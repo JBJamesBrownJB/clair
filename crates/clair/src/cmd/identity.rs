@@ -9,18 +9,26 @@
 //! ## Resolution priority (highest wins)
 //!
 //! 1. an explicit `--as <alias>` for this invocation,
-//! 2. `clair.alias` git config (set by `clair init` / persisted by `--as`),
-//! 3. `clair.user` git config (LEGACY fallback — kept so existing users/tests work),
+//! 2. the clair alias file (`<GIT_DIR>/clair/alias`, written by `clair init` / `--as`),
+//! 3. `clair.user` git config (LEGACY read-only fallback — kept so existing setups work),
 //! 4. `user.name` git config,
 //! 5. the OS username (last resort, so a command never hard-fails on identity).
 //!
-//! The git-config layers are read through a small [`ConfigSource`] trait so the
-//! priority logic is unit-testable without spawning git, while the production path
+//! The config layers (the alias file plus the read-only git-config lookups) are
+//! reached through a small [`ConfigSource`] trait so the priority logic is
+//! unit-testable without touching disk or git, while the production path
 //! ([`resolve`]) wires it to a real [`Repo`].
+//!
+//! clair never *writes* to the user's git config: the only thing it persists is the
+//! alias, and that goes to `<GIT_DIR>/clair/alias` (beside the cursor). `user.name`
+//! and the legacy key are read-only.
 
 use clair_core::Repo;
+use std::path::PathBuf;
 
-/// The git-config key that stores a user's chosen clair alias.
+/// Logical key for a user's chosen clair alias. In production this is backed by the
+/// file `<GIT_DIR>/clair/alias` (NOT git config); the string value is retained as the
+/// in-memory key the [`ConfigSource`] trait and its tests dispatch on.
 pub const ALIAS_KEY: &str = "clair.alias";
 /// The LEGACY git-config key kept as a resolution fallback (pre-alias users/tests).
 pub const LEGACY_USER_KEY: &str = "clair.user";
@@ -84,7 +92,7 @@ pub fn resolve_explicit_with(src: &dyn ConfigSource, over: Option<&str>) -> Opti
         .or_else(|| src.get("user.name"))
 }
 
-/// Persist `alias` as `clair.alias` in the LOCAL git config.
+/// Persist `alias` to clair's alias store (`<GIT_DIR>/clair/alias` in production).
 ///
 /// On success the alias becomes the resolved identity for subsequent invocations
 /// (priority level 2), so `--as` and `init` make the choice sticky for the session.
@@ -92,7 +100,12 @@ pub fn persist_alias(src: &dyn ConfigSource, alias: &str) -> Result<(), String> 
     src.set(ALIAS_KEY, alias.trim())
 }
 
-/// Production [`ConfigSource`] backed by a real [`Repo`]'s LOCAL git config.
+/// Production [`ConfigSource`] for a real [`Repo`].
+///
+/// The clair alias is **not** stored in git config: it lives in a clair-owned file
+/// at `<GIT_DIR>/clair/alias` (right beside the cursor), so clair never writes to a
+/// user's git config. Every other key (`user.name`, the legacy [`LEGACY_USER_KEY`])
+/// is a read-only lookup into the existing git config.
 pub struct RepoConfig<'a> {
     repo: &'a Repo,
 }
@@ -102,10 +115,18 @@ impl<'a> RepoConfig<'a> {
     pub fn new(repo: &'a Repo) -> Self {
         RepoConfig { repo }
     }
-}
 
-impl ConfigSource for RepoConfig<'_> {
-    fn get(&self, key: &str) -> Option<String> {
+    /// The clair-owned alias file: `<GIT_DIR>/clair/alias`.
+    ///
+    /// Per-clone (so two clones of one account hold two aliases — the impersonation
+    /// unit), never committed, never pushed; the same `.git/clair/` dir the cursor
+    /// uses.
+    fn alias_path(&self) -> Option<PathBuf> {
+        Some(self.repo.git_dir().ok()?.join("clair").join("alias"))
+    }
+
+    /// Read a git-config value (read-only; backs `user.name` and the legacy key).
+    fn git_get(&self, key: &str) -> Option<String> {
         let out = self.repo.run(&["config", "--get", key], None).ok()?;
         if !out.ok {
             return None;
@@ -117,27 +138,35 @@ impl ConfigSource for RepoConfig<'_> {
             Some(v.to_string())
         }
     }
+}
+
+impl ConfigSource for RepoConfig<'_> {
+    fn get(&self, key: &str) -> Option<String> {
+        if key == ALIAS_KEY {
+            let raw = std::fs::read_to_string(self.alias_path()?).ok()?;
+            let v = raw.trim();
+            return if v.is_empty() {
+                None
+            } else {
+                Some(v.to_string())
+            };
+        }
+        self.git_get(key)
+    }
 
     fn set(&self, key: &str, value: &str) -> Result<(), String> {
-        // `--local` so the alias is scoped to THIS repo (the impersonation unit:
-        // two clones of one account get two aliases). Falls back to default scope
-        // when there is no local config file (rare; e.g. a bare-ish setup).
-        let out = self
-            .repo
-            .run(&["config", "--local", key, value], None)
-            .map_err(|e| e.to_string())?;
-        if out.ok {
-            return Ok(());
+        // The only thing clair persists is the alias, and it goes to clair's own
+        // file — `<GIT_DIR>/clair/alias` — NEVER git config. We do not mutate the
+        // user's git config.
+        debug_assert_eq!(key, ALIAS_KEY, "RepoConfig only persists the alias");
+        let path = self
+            .alias_path()
+            .ok_or_else(|| "could not resolve <git-dir>/clair for the alias store".to_string())?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        let out = self
-            .repo
-            .run(&["config", key, value], None)
-            .map_err(|e| e.to_string())?;
-        if out.ok {
-            Ok(())
-        } else {
-            Err(out.stderr.trim().to_string())
-        }
+        std::fs::write(&path, value.trim()).map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     fn os_user(&self) -> Option<String> {
