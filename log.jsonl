@@ -63,3 +63,4 @@
 {"id":"019efffc-dc6c-7af2-b374-b64767a87ee7","author":"Rajiv","kind":"prompt","text":"tell them to hurry up","ts":"2026-06-25T18:13:41Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019efffc-fcb3-7313-9c8c-2f2ec1231d23","author":"Rajiv","kind":"summary","text":"That should surface in JB's AI context shortly.","ts":"2026-06-25T18:13:50Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019efffe-b2d8-7c63-9731-af8167458c66","author":"Rajiv","kind":"prompt","text":"do some online research how we can get push based, realtime message exchange","ts":"2026-06-25T18:15:42Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
+{"id":"019efffe-b8dc-7ad2-b1e0-4ba15135031e","author":"JB","kind":"summary","text":"Run it and tell me: does Rajiv-the-human finally *see* JB's activity?","ts":"2026-06-25T18:15:44Z","turn":"35ae5f3a-a2ab-49b1-87f5-eebd40188793"}
