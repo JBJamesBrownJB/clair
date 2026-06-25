@@ -22,3 +22,6 @@ Maybe we remove all the pair stuff and instead just enroll everyone.
 
 
 - Future feature: global awareness
+
+In this new world, the signals being sent from each 'client' need to be flares to 'catch' the right scenarios.
+Maybe things like, Rajiv is working over in this part of the code, implimenting this feature....
