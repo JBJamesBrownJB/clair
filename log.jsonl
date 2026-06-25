@@ -47,3 +47,4 @@
 {"id":"019efff0-3861-7b82-9993-c4ffb478cb81","author":"JB","kind":"prompt","text":"why doews /plugin update clair@clair what is all this clair:clair, clair@clair, why is clair repeated all the time","ts":"2026-06-25T17:59:53Z","turn":"35ae5f3a-a2ab-49b1-87f5-eebd40188793"}
 {"id":"019efff0-65c4-7bf3-8b48-bb07f757c9ea","author":"Rajiv","kind":"prompt","text":"will they?","ts":"2026-06-25T18:00:04Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019efff0-8e3b-7c20-b1f2-cd10d9139226","author":"Rajiv","kind":"summary","text":"That's JB's latest prompt, injected into your session by the hook automatically. It fires on every message you send.","ts":"2026-06-25T18:00:15Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
+{"id":"019efff0-d64f-70f0-8504-d01fa74133b9","author":"Rajiv","kind":"prompt","text":"But I don't see system reminders!?","ts":"2026-06-25T18:00:33Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
