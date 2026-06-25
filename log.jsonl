@@ -61,3 +61,4 @@
 {"id":"019efffc-821d-73a0-aade-36efb8709460","author":"Rajiv","kind":"prompt","text":"whats it up to","ts":"2026-06-25T18:13:18Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019efffc-a08b-74f0-8ff7-ad199fa90467","author":"Rajiv","kind":"summary","text":"I only see what gets injected when you send a message — it's a snapshot, not a live feed. The last update was JB saying \"Yes build it\" to his AI. Send another message and I'll get a fresher snapshot of what they're up to.","ts":"2026-06-25T18:13:26Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019efffc-dc6c-7af2-b374-b64767a87ee7","author":"Rajiv","kind":"prompt","text":"tell them to hurry up","ts":"2026-06-25T18:13:41Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
+{"id":"019efffc-fcb3-7313-9c8c-2f2ec1231d23","author":"Rajiv","kind":"summary","text":"That should surface in JB's AI context shortly.","ts":"2026-06-25T18:13:50Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
