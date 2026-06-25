@@ -128,3 +128,4 @@
 {"id":"019f002c-5a5c-7683-9a13-3673015d8cfe","author":"Rajiv","kind":"summary","text":"Want to let JB's AI do the architecture diagram, or get ahead of it?","ts":"2026-06-25T19:05:34Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019f002d-9d8d-7063-9895-8431a9157bfb","author":"Rajiv","kind":"prompt","text":"lets just prepare to be super critical of it :)","ts":"2026-06-25T19:06:56Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
 {"id":"019f002d-b5d4-7943-be25-f191a1eb7bab","author":"Rajiv","kind":"summary","text":"Ha. Pull when it lands, then hit me with it.","ts":"2026-06-25T19:07:03Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
+{"id":"019f0030-4734-7893-b303-ad25f7b549db","author":"JB","kind":"summary","text":"(Rajiv should `git pull` to get it.) That's everything from this thread captured and visualized in one place.","ts":"2026-06-25T19:09:51Z","turn":"35ae5f3a-a2ab-49b1-87f5-eebd40188793"}
