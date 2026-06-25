@@ -11,5 +11,6 @@ Short records of decisions worth remembering — what we chose and why. Each is 
 | [0003](0003-dual-integration-mcp-and-skill.md) | Integrate via both MCP and Agent Skill | accepted |
 | [0004](0004-delivery-pluggable-live-via-watcher.md) | Pluggable delivery; live via watcher + Channels | proposed |
 | [0005](0005-identity-alias-with-teams-deferred.md) | Identity is a chosen alias (teams deferred) | accepted |
+| [0006](0006-intent-classified-actor-framing.md) | Shared-entry framing is intent-classified by the sender's AI | accepted |
 
 Open questions get added here as `proposed` ADRs as we hit them.
