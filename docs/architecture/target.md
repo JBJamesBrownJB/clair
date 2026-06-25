@@ -216,6 +216,8 @@ local cursor; TTLs are guesses.
 | [0006](../decisions/0006-intent-classified-actor-framing.md) | Shared-entry framing is intent-classified |
 
 ## Idea backlog (`features/ideas/`)
+[progressive-disclosure](../features/ideas/progressive-disclosure.md) (lens: tier
+activity 0/1/2, defines "smartly") ·
 [push-updates](../features/ideas/push-updates.md) (ambient delivery via Channels) ·
 [lifecycle](../features/ideas/lifecycle.md) (cleanup) ·
 [pair-branch](../features/ideas/pair-branch.md) (live code sync — RULED OUT) ·

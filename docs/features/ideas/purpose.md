@@ -2,7 +2,7 @@ what is the purpose of clair?
 
 - pairing on a feature, same branch? I think this is a dud and competes against other live coding stuff
 - working in the same repo but on different branches: more likely, its like its a way to keep in loose touch with all the ther agents who are busy on their own branches, maybe worktress but ultimatley, you are developing alone. However, you can send info to others in the codebase if you want to.
-- - Keep in loose touch with all agents and people in the codebase, clair will smartly bring things to your attention if it spots you are making decisison that need context from the other agents.
+- - Keep in loose touch with all agents and people in the codebase, clair will smartly bring things to your attention if it spots you are making decisison that need context from the other agents. (*"smartly"* is defined concretely in [progressive-disclosure.md](progressive-disclosure.md): escalate the grain of disclosure as relevance rises.)
 - - See live snippets and activity of others in the codebase on demand and smartly delivered to you
 - - Push messages along with context from your session to an agent or user who is in the codebase directly
 - - Have clair maintain global artifacts that benefit from global activity awareness across the repo
