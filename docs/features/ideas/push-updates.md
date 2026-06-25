@@ -80,6 +80,50 @@ with the precise bug we'd hit. Gate the build on (a) Claude Code ≥ v2.1.80 **a
 (b) the idle-delivery issues (#61797, #58469) closing. Until then, slice-1's
 prompt-gated `systemMessage` delivery stands as the shipped experience.
 
+## How we'd build it on Channels (implementation sketch)
+A channel is just an MCP server that (a) declares
+`capabilities.experimental['claude/channel'] = {}` and (b) emits
+`notifications/claude/channel` with `{ content, meta }`. The content lands in the
+session as `<channel source="clair" …>…</channel>`, pushed live even when idle. clair
+already ships an MCP server (`clair serve`), so it becomes a **one-way channel** with
+four additions:
+
+1. Declare the `claude/channel` capability on `clair serve`.
+2. A background **git-poll loop** inside `clair serve`: `git fetch` the shadow ref
+   ~every 5 s, read entries past the local cursor.
+3. Emit one `notifications/claude/channel` per new entry — `content` = the human
+   banner we already render (reuse `render_inbound_human`).
+4. An `instructions` string so the AI handles events **smartly, not muted**: present
+   them to the human as a short pair-awareness note; do **not** start working on the
+   teammate's task; do **not** reply into the channel.
+
+### Loop-safety with live channel delivery (the invariant)
+A channel event *triggers a Claude turn* (Claude receives it and responds). Smart
+display is fine — but that turn must **not** produce a new shared entry, or it
+ping-pongs: JB's prompt → Rajiv's channel → Rajiv's AI reacts → Rajiv's `Stop` shares
+it → JB's channel → … . **Rule: the outbound pipe fires only on _human-started_
+turns.** A channel-triggered turn has no `UserPromptSubmit`, so the `Stop` hook must
+skip sharing it. Small change to the share-gate; the two-pipe loop-guard holds while
+the AI is as smart as the instructions allow.
+
+### Turning it on (today, preview)
+- Claude Code ≥ **v2.1.80**.
+- Launch each session with `claude --dangerously-load-development-channels plugin:clair@clair`.
+- That `--dangerously-…` flag is the **research-preview gate for channels not on
+  Anthropic's curated allowlist** — temporary. Once clair is allowlisted (official-
+  marketplace listing / partner coordination, or an org's `allowedChannelPlugins`)
+  it becomes the ordinary `--channels plugin:clair@clair` (no "dangerously"). A
+  lightweight per-session opt-in (`--channels` / `channelsEnabled`) likely remains by
+  design — friction, but nothing alarming.
+
+### Gating build risk — spike this first
+Every Channels example is the **JS** MCP SDK. **Unproven for us:** can our Rust
+`rmcp` server declare an `experimental` capability and emit a raw
+`notifications/claude/channel` *outside* a tool call? Spike *just that* (~30 min)
+before committing. Clean ⇒ the poll loop + instructions + share-gate are
+straightforward; not clean ⇒ send a raw JSON-RPC notification ourselves, or it's a
+wall.
+
 ## Alternative delivery triggers (if Channels idle-delivery stays unreliable)
 - **Watcher daemon + Channels** — a background `clair` watcher polls the remote
   shadow ref and emits a Channel notification into the local session (the
