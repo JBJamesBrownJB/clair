@@ -95,3 +95,4 @@
 {"id":"019f000b-c433-7473-aea0-67c86fdd2e95","author":"JB","kind":"prompt","text":"oh, well look at the idea for push-updates from the other session","ts":"2026-06-25T18:29:58Z","turn":"35ae5f3a-a2ab-49b1-87f5-eebd40188793"}
 {"id":"019f000c-95e8-7213-86bb-e32cdae78aea","author":"JB","kind":"summary","text":"Rajiv wrote their own version to `docs/features/ideas/push-updates.md` in the other clone. Let me fetch and see if it's on the remote, so I can actually read it and reconcile with mine:","ts":"2026-06-25T18:30:52Z","turn":"35ae5f3a-a2ab-49b1-87f5-eebd40188793"}
 {"id":"019f000d-17ec-7842-ab74-d471dbe65926","author":"Rajiv","kind":"prompt","text":"commit, push","ts":"2026-06-25T18:31:25Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
+{"id":"019f000d-6869-71f3-933c-3cd7b931347a","author":"Rajiv","kind":"summary","text":"Pushed. JB's AI is about to fetch and read it — good timing.","ts":"2026-06-25T18:31:46Z","turn":"e40b84fe-c652-4e46-b221-2ab66a8324e6"}
