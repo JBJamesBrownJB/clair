@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# clair Stop shim — distil the final reply to one paragraph and share it as a summary.
+# clair Stop shim — distil the final reply (a paragraph, or its trailing list of
+# points) and share it as a summary.
 #
 # One-line pass-through to the real binary, which owns ALL logic
 # (clair-core::hooks::on_stop). stdin (the Claude Stop hook JSON, incl. transcript_path

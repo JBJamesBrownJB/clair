@@ -84,6 +84,16 @@ fn when_finish(w: &mut World, handle: String, conclusion: String) {
     w.dev_mut(&handle).finish_turn(&conclusion);
 }
 
+#[when(regex = r#"^(\w+) finishes a turn with the multi-point conclusion:$"#)]
+fn when_finish_multipoint(w: &mut World, handle: String, step: &cucumber::gherkin::Step) {
+    // The conclusion is a multi-line docstring (one point per line) — the case the
+    // distiller must keep whole, not truncate to the last point.
+    let reply = step
+        .docstring()
+        .expect("a docstring with the multi-point conclusion");
+    w.dev_mut(&handle).finish_turn(reply);
+}
+
 #[when(regex = r#"^(\w+) interacts$"#)]
 fn when_interacts(w: &mut World, handle: String) {
     // A bare interaction: submit an innocuous prompt so the inbound hook runs and

@@ -176,7 +176,8 @@ On Rajiv's **next interaction** his UserPromptSubmit hook injects, as background
 ─────────────────────────────────────────────────────────────────
 ```
 
-…and once JB's turn finishes (Stop hook distils the final paragraph):
+…and once JB's turn finishes (Stop hook distils the key points — the final
+paragraph, or the trailing list of conclusions when the turn ends in several):
 
 ```
 ── shared pair context (background — your AI won't act on this) ──

@@ -106,6 +106,48 @@ fn two_agents_pair_through_the_harness_and_become_mutually_aware() {
     }
 }
 
+/// A multi-point conclusion propagates whole: when JB finishes a turn with several
+/// distinct conclusions, every point reaches Rajiv — not just the last one (the
+/// lossy-distillation regression guard, driven through the public agent API).
+#[test]
+fn a_multi_point_conclusion_reaches_the_pair_with_every_point() {
+    let mut world = World::new();
+    world.add_dev("JB", "feature/login");
+    world.add_dev("Rajiv", "feature/login");
+
+    // JB ends his turn with a blank-line-separated three-point critique, no sentinel.
+    world.dev_mut("JB").submit_prompt("review my plan");
+    world.dev_mut("JB").finish_turn(
+        "Here's my take.\n\n\
+         1. point one is the instant-wow gap\n\n\
+         2. point two is the arbitrary cap\n\n\
+         3. point three is the undocumented sentinel",
+    );
+
+    // Rajiv's next turn surfaces JB's conclusion — with all three points intact.
+    let saw = world.dev_mut("Rajiv").submit_prompt("what did you find?");
+    assert!(
+        saw.mentions_conclusion_from("JB"),
+        "Rajiv must see JB's multi-point conclusion: {:?}",
+        saw.text()
+    );
+    assert!(
+        saw.contains("1. point one is the instant-wow gap"),
+        "first point lost: {:?}",
+        saw.text()
+    );
+    assert!(
+        saw.contains("2. point two is the arbitrary cap"),
+        "middle point lost: {:?}",
+        saw.text()
+    );
+    assert!(
+        saw.contains("3. point three is the undocumented sentinel"),
+        "last point: {:?}",
+        saw.text()
+    );
+}
+
 /// Loop-guard, observed strictly through the public API: an agent that *receives*
 /// a peer delta writes nothing of the peer's own, and the delta is not re-delivered
 /// on its next turn. This is the invariant an external loop relies on to avoid echo.

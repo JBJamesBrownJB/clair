@@ -375,6 +375,28 @@ mod tests {
     }
 
     #[test]
+    fn stop_captures_a_trailing_multi_point_conclusion_as_bullets() {
+        let git = FakeGit::new();
+        let shadow = ShadowRef::context("feature/login");
+        let mut cursor = Cursor::Start;
+        let mut hc = ctx(git, "JB", "feature/login", &mut cursor);
+
+        // Final reply ends in a blank-line-separated 1..3 critique, no sentinel.
+        let transcript = Transcript::from_jsonl(
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Here are my concerns.\n\n1. instant-wow is unproven\n\n2. the cap is arbitrary\n\n3. the sentinel is undocumented"}]}}"#,
+        );
+        let outcome = hc.on_stop(&transcript).unwrap();
+        assert!(matches!(outcome, HookOutcome::Captured { pushed: Some(_) }));
+
+        let written = Entry::from_jsonl(&hc.backend.lines(&shadow)[0]).unwrap();
+        assert_eq!(written.kind, Kind::Summary);
+        // Every point survives — not just the last — as separate lines.
+        assert_eq!(written.text.lines().count(), 3);
+        assert!(written.text.contains("1. instant-wow is unproven"));
+        assert!(written.text.contains("3. the sentinel is undocumented"));
+    }
+
+    #[test]
     fn stop_with_empty_transcript_writes_nothing() {
         let git = FakeGit::new();
         let shadow = ShadowRef::context("feature/login");

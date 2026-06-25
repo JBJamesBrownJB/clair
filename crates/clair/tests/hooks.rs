@@ -369,6 +369,37 @@ fn summary_propagates_and_renders_for_the_peer() {
 }
 
 #[test]
+fn multi_point_summary_propagates_with_every_point_through_the_real_binary() {
+    let remote = bare_remote();
+    let jb = clone(remote.path(), "JB", true);
+    on_feature(jb.path());
+
+    // JB ends a turn with a blank-line-separated three-point critique, no sentinel.
+    let transcript = write_transcript(
+        jb.path(),
+        "s1.jsonl",
+        "Here are my concerns.\n\n\
+         1. instant-wow is unproven\n\n\
+         2. the cap is arbitrary\n\n\
+         3. the sentinel is undocumented",
+    );
+    run_hook(jb.path(), "stop", "feature/login", &stop_json("s1", &transcript, false));
+
+    let rajiv = clone(remote.path(), "Rajiv", false);
+    git(rajiv.path(), &["fetch", "origin", "feature/login"]);
+    git(rajiv.path(), &["checkout", "feature/login"]);
+
+    let stdout = run_hook(rajiv.path(), "prompt", "feature/login", &prompt_json("s2", "rajiv asks"));
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let ctx = v["hookSpecificOutput"]["additionalContext"].as_str().unwrap();
+    // The multi-line header frames it, and every point survives the round-trip.
+    assert!(ctx.contains("✓ JB's AI concluded:"), "{ctx}");
+    assert!(ctx.contains("1. instant-wow is unproven"), "first point lost: {ctx}");
+    assert!(ctx.contains("2. the cap is arbitrary"), "middle point lost: {ctx}");
+    assert!(ctx.contains("3. the sentinel is undocumented"), "last point lost: {ctx}");
+}
+
+#[test]
 fn branch_scope_entries_on_branch_a_are_invisible_on_branch_b() {
     let remote = bare_remote();
     let jb = clone(remote.path(), "JB", true);

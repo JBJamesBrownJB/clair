@@ -63,6 +63,22 @@ Feature: The shared pair brain — the full v0 user scenario
     Then Rajiv's injected context shows JB concluded "Moved the guard into AuthMiddleware; 1 test still failing on the expired-token case."
     And Rajiv's injected context is framed as passive background
 
+  Scenario: a multi-point conclusion propagates with every point intact
+    Given JB has a clone on branch "feature/login"
+    And Rajiv has a clone on branch "feature/login"
+    When JB submits the prompt "review my plan"
+    And JB finishes a turn with the multi-point conclusion:
+      """
+      Here are my concerns.
+
+      1. instant-wow is unproven
+      2. the cap is arbitrary
+      3. the sentinel is undocumented
+      """
+    And Rajiv interacts
+    Then Rajiv's injected context shows JB concluded "1. instant-wow is unproven"
+    And Rajiv's injected context shows JB concluded "3. the sentinel is undocumented"
+
   # ── ③ Reciprocal awareness the other direction ──────────────────────────
 
   Scenario: reciprocal awareness the other direction

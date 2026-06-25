@@ -15,7 +15,7 @@ aware of what your pair's Claude just did, through git, ephemeral, no server.
 JB and Rajiv each work in their **own** Claude, both on branch `feature/login`.
 
 1. JB types a prompt. Rajiv sees, in **his** Claude session: `↪ JB asked his AI: "refactor the auth guard…"` — and it does **not** make Rajiv's AI do anything.
-2. JB's Claude finishes its work. Its final reply is distilled to one paragraph and surfaces in Rajiv's session: `✓ JB's AI concluded: "Moved the guard to middleware; tests still red on the token case."`
+2. JB's Claude finishes its work. Its final reply is distilled to its key points (a short paragraph, or a short bulleted list when the turn ends in several) and surfaces in Rajiv's session: `✓ JB's AI concluded: "Moved the guard to middleware; tests still red on the token case."`
 3. Symmetric the other way. Each person's Claude is quietly **aware** of the pair's latest context on their next turn.
 
 No new ritual: you just use Claude. clair shares your deltas and shows you theirs.
@@ -92,7 +92,7 @@ Built on Claude Code hooks (verified capabilities):
 
 - **Outbound — capture:**
   - `UserPromptSubmit` hook → captures my prompt → `clair` pushes a `prompt` entry.
-  - `Stop` hook (fires when Claude finishes) → reads the final reply from the transcript, distils a one-paragraph summary → `clair` pushes a `summary` entry.
+  - `Stop` hook (fires when Claude finishes) → reads the final reply from the transcript, distils its key points (a short paragraph, or a short bulleted list when the turn ends in several) → `clair` pushes a `summary` entry.
 - **Inbound — deliver:**
   - `UserPromptSubmit` hook → `clair` fetches the shared branch and returns my pair's **new** entries as `additionalContext` (≤10k chars), so they're visible and my Claude is aware — passively, riding my own next prompt. **No autonomous LLM turn.**
 
@@ -119,7 +119,7 @@ sequenceDiagram
     G-->>RC: deliver JB's prompt entry
     RC-->>Rajiv: shows "JB asked his AI ..."
     Note over JBC: Stop hook distils the final reply
-    JBC->>G: push summary entry (one paragraph)
+    JBC->>G: push summary entry (key points)
     G-->>RC: deliver JB's summary entry
     RC-->>Rajiv: shows "JB's AI concluded ..."
 ```

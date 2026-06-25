@@ -83,7 +83,8 @@ Two Claude Code hooks (bundled in the plugin, auto-firing):
 
 - **`UserPromptSubmit`** → shares your prompt and injects your pair's *new* prompts
   and conclusions as **passive background context** (your AI does not act on them).
-- **`Stop`** → distils your finished reply to one short paragraph and shares it.
+- **`Stop`** → distils your finished reply to its key points (a short paragraph, or
+  the trailing list of conclusions) and shares it.
 
 The hook subcommands are self-sufficient: they resolve the repo root from
 `$CLAUDE_PROJECT_DIR` (set by Claude Code) and the branch from your current git

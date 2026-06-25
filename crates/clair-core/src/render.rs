@@ -48,7 +48,28 @@ pub fn prompt_line(author: &str, text: &str) -> String {
 
 /// The per-entry framed line for `kind=summary`.
 pub fn summary_line(author: &str, text: &str) -> String {
-    format!("✓ {author}'s AI concluded: \"{text}\"")
+    lay_out_quote(format!("✓ {author}'s AI concluded:"), text, "   ")
+}
+
+/// Lay out a quoted conclusion. Single-line text keeps the exact inline form
+/// `<lead> "<text>"`; multi-line text becomes a `<lead>` header followed by each
+/// non-empty line indented by `indent` (so a bulleted conclusion stays readable
+/// and never breaks the one-line banner layout).
+///
+/// `lead` is the only verb-bearing string, kept in one place so framing changes
+/// (e.g. intent-classified verbs) never have to fork the single-vs-multi-line
+/// layout.
+fn lay_out_quote(lead: String, text: &str, indent: &str) -> String {
+    if !text.contains('\n') {
+        return format!("{lead} \"{text}\"");
+    }
+    let mut out = lead;
+    for line in text.lines().filter(|l| !l.trim().is_empty()) {
+        out.push('\n');
+        out.push_str(indent);
+        out.push_str(line);
+    }
+    out
 }
 
 /// The per-entry framed line for `kind=signal` (the text is the branch joined).
@@ -129,7 +150,7 @@ pub fn human_prompt_line(author: &str, text: &str) -> String {
 /// Human line for `kind=summary`. Note "'s AI": the conclusion is the AI's, not the
 /// person's — `<author> concluded` would misattribute it to the human.
 pub fn human_summary_line(author: &str, text: &str) -> String {
-    format!("   ✓ {author}'s AI concluded: \"{text}\"")
+    lay_out_quote(format!("   ✓ {author}'s AI concluded:"), text, "      ")
 }
 
 /// Human line for `kind=signal` (the text is the branch joined).
@@ -376,5 +397,37 @@ mod tests {
             signal_line("Rajiv", "feature/login"),
             "🤝 Rajiv joined the pair session on feature/login."
         );
+    }
+
+    // --- multi-point summaries (the lossy-distillation fix) -------------------
+
+    #[test]
+    fn summary_line_multiline_renders_header_then_indented_bullets() {
+        let got = summary_line("JB", "- a\n- b\n- c");
+        assert_eq!(got, "✓ JB's AI concluded:\n   - a\n   - b\n   - c");
+    }
+
+    #[test]
+    fn human_summary_line_multiline_indents_bullets_deeper() {
+        let got = human_summary_line("JB", "- a\n- b");
+        assert_eq!(got, "   ✓ JB's AI concluded:\n      - a\n      - b");
+    }
+
+    #[test]
+    fn multiline_summary_frames_under_background_banner_with_all_points() {
+        let s = entry("JB", Kind::Summary, "- moved the guard\n- one test red");
+        let got = render_inbound(&[s]).unwrap();
+        // Written as one explicit string: a `\`-continuation would strip the
+        // leading indent we are specifically asserting.
+        let expected = "── shared pair context (background — your AI won't act on this) ──\n✓ JB's AI concluded:\n   - moved the guard\n   - one test red\n─────────────────────────────────────────────────────────────────";
+        assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn multiline_human_summary_keeps_every_point_visible() {
+        let s = entry("JB", Kind::Summary, "- moved the guard\n- one test red");
+        let got = render_inbound_human(&[s]).unwrap();
+        let expected = "🤝 clair · your pair\n   ✓ JB's AI concluded:\n      - moved the guard\n      - one test red";
+        assert_eq!(got, expected);
     }
 }

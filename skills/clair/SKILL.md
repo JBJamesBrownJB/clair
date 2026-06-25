@@ -70,28 +70,39 @@ Two Claude Code hooks, wired by `clair with`:
   - **Outbound:** shares the user's prompt as a `prompt` entry (`JB asked his AI:
     "…"`).
 - **`Stop`** (`hooks/stop.sh` → `clair hook stop`): when your turn finishes, the
-  final reply is distilled to one short paragraph and shared as a `summary` entry
-  (`JB's AI concluded: "…"`).
+  final reply is distilled to its key points — a short paragraph, or its trailing
+  list of conclusions — and shared as a `summary` entry (`JB's AI concluded: "…"`).
 
 You do not call these hooks; `clair with` installs them via a `--settings` merge
 file (`clair-hooks.settings.template.json`).
 
 ## The shared-summary contract (the `CLAIR-SUMMARY` sentinel)
 
-By default the `Stop` hook distils the **final paragraph** of your reply as the
-shared conclusion. You can choose the shared one-line summary explicitly: make the
-**last paragraph** of your final turn a single line beginning with the exact
-sentinel:
+By default the `Stop` hook distils your reply's key points as the shared
+conclusion: if your turn **ends in a list**, the whole trailing list is kept (one
+bullet per point — not just the last); otherwise it keeps the final paragraph. You
+can choose the shared conclusion explicitly with the exact sentinel, on its own
+line — a single sentence, or several bullet lines when your turn reached several
+distinct conclusions:
 
 ```
 CLAIR-SUMMARY: <one short sentence describing what your turn concluded>
 ```
 
-When present, the text after `CLAIR-SUMMARY:` (to the end of that paragraph) is
-shared verbatim as the conclusion, overriding the final-paragraph heuristic. The
-exact spelling is `CLAIR-SUMMARY:` (uppercase, trailing colon) — it must match the
-parser in `clair-core`'s transcript module. Keep it to one sentence: it is a delta
-for your pair, not a recap.
+or, for a multi-point turn:
+
+```
+CLAIR-SUMMARY:
+- moved the guard into AuthMiddleware
+- one expired-token test still red
+- the cap is still arbitrary
+```
+
+When present, the text after `CLAIR-SUMMARY:` (to the next blank line) is shared as
+the conclusion, overriding the default. The exact spelling is `CLAIR-SUMMARY:`
+(uppercase, trailing colon) — it must match the parser in `clair-core`'s transcript
+module. Keep it to the few key points (≤6 lines): it is a delta for your pair, not
+a recap.
 
 ## Loop safety (do not defeat it)
 

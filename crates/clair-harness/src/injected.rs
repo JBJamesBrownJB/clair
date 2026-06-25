@@ -131,4 +131,20 @@ mod tests {
         assert!(!i.has_background());
         assert!(i.mentions_join_from("Rajiv"));
     }
+
+    #[test]
+    fn detects_a_multi_point_conclusion_with_every_point() {
+        // A multi-point conclusion is framed as a header (which the predicate
+        // matches) plus one indented line per point — all of which survive.
+        let raw = render_inbound(&[entry(
+            "JB",
+            Kind::Summary,
+            "- moved the guard\n- one expired-token test still red\n- cap is arbitrary",
+        )]);
+        let i = Injected::new(raw);
+        assert!(i.mentions_conclusion_from("JB"));
+        assert!(i.contains("- moved the guard"));
+        assert!(i.contains("- one expired-token test still red"));
+        assert!(i.contains("- cap is arbitrary"));
+    }
 }
