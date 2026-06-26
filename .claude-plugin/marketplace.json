@@ -6,8 +6,8 @@
   "plugins": [
     {
       "name": "clair",
-      "description": "Pair with a teammate through your AI harness, over git, ephemeral, no server. Self-contained: bundles the clair binary, the UserPromptSubmit + Stop capture/inject hooks, and the /clair slash commands.",
-      "version": "0.1.5",
+      "description": "Repo-level ambient awareness via progressive disclosure: a clair discloses a live event the way a skill discloses pre-defined context. Skeleton scaffold — features not yet built.",
+      "version": "0.0.0",
       "source": "./plugin"
     }
   ]

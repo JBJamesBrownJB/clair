@@ -4,14 +4,6 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The smarts of clair: git shell-out + local logic for the shared pair brain."
+description = "clair-core — empty stub. The brains will live here. See docs/product.md."
 
 [dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
-uuid = { workspace = true }
-time = { workspace = true }
-
-[dev-dependencies]
-tempfile = { workspace = true }

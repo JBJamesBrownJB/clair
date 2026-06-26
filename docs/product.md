@@ -1,8 +1,8 @@
 # clair — What It Is
 
 > The product spirit, one page. What clair is, how it feels, what it refuses to be.
-> Supersedes the vision in [seed-ideas.md](seed-ideas.md) and the scratch thinking in
-> [features/ideas/purpose.md](features/ideas/purpose.md) (both kept for provenance).
+> Supersedes the vision in [seed-ideas.md](archive/seed-ideas.md) and the scratch thinking in
+> [features/ideas/purpose.md](archive/features/ideas/purpose.md) (both kept for provenance).
 
 ## Identity
 
@@ -95,7 +95,7 @@ noise.
 ## Explicitly not
 
 - **Not live code sync.** clair shares *awareness*, not bytes — Live Share et al. own
-  co-editing ([why](features/ideas/pair-branch.md)).
+  co-editing ([why](archive/features/ideas/pair-branch.md)).
 - **Not an audit log or history.** Live events that expire, not a record.
 - **Not a central server.** Git is the only backend.
 - **Not same-branch co-editing.** Pairing on one branch was the old dream; it competes
