@@ -1,6 +1,7 @@
 # clair — What It Is
 
 > The product spirit, one page. What clair is, how it feels, what it refuses to be.
+> The concrete capabilities derived from it live in [core-features.md](core-features.md).
 > Supersedes the vision in [seed-ideas.md](archive/seed-ideas.md) and the scratch thinking in
 > [features/ideas/purpose.md](archive/features/ideas/purpose.md) (both kept for provenance).
 
