@@ -45,17 +45,44 @@ an expensive body**:
 
 | Facet | Example | Role |
 |-------|---------|------|
-| `paths` | `["src/auth.rs", "src/auth/"]` | **Spatial** key. Repo-relative; prefix/glob-matchable. |
-| `symbols` | `["AuthMiddleware", "auth::check"]` | Finer spatial/semantic key. Exact match. |
-| `tags` | `["auth", "refactor"]` | Coarse **semantic** key. Controlled vocabulary. |
+| `paths` | `["src/auth.rs", "src/auth/"]` | **Where** — the files and folders involved. |
+| `symbols` | `["AuthMiddleware", "auth::check"]` | **What** — the function/type/class names involved. |
+| `tags` | `["auth", "refactor"]` | **Topic** — a few short labels. |
 
-**Matching** = `match(my_work, clair.about) → score`, computed as weighted overlap: path
-prefix/glob ∩, symbol exact ∩, tag exact ∩. Deterministic, local, cheap enough for the
-1-second statusline poll. **Why facets over embeddings:** the landscape research shows the
-spatial signal (same file/hunk) is the proven, cheap win; a free-text/embedding step is
-heavier, can't reliably run in <1s locally, and is fuzzier to query. Semantic matching is
-**layered on later behind the same `match()` interface** — facets first, embeddings as a
-pluggable upgrade, never a blocker.
+### How matching works
+
+clair constantly asks: *is this blip relevant to what I'm doing right now?* It answers by
+comparing two lists —
+
+- **what you're working on** (the files you have open, the functions you're editing, the
+  topic), and
+- **what the blip is `about`** (its `paths`, `symbols`, `tags`).
+
+The more they overlap, the higher the blip's **relevance score**, and the more the radar
+lights up (grey → amber → red). The comparison is plain and mechanical:
+
+- **paths** match if it's the same file, or one is inside the other's folder — a blip about
+  `src/auth/` is relevant to anyone editing `src/auth/login.rs`. (Wildcard patterns like
+  `src/**/*.rs`, meaning "any Rust file under `src/`", are also allowed.)
+- **symbols** match if it's the same name — a blip about `AuthMiddleware` is relevant only
+  if you're touching `AuthMiddleware`.
+- **tags** match if it's the same label — `auth` matches `auth`.
+
+A same-file hit counts for more than a shared tag (it's a stronger signal), so the score is
+a **weighted** tally of the overlaps.
+
+**Example.** You're editing `src/auth.rs`, in the function `check`, topic `auth`. A blip's
+`about` is `{ paths: ["src/auth.rs"], symbols: ["AuthMiddleware"], tags: ["auth"] }`. Same
+file ✓ (strong) and same tag ✓ (weak) → high score → the radar escalates. There's no AI and
+no network here — just comparing lists — so it runs in well under a millisecond and can
+refresh every second for the statusline.
+
+**Why this way, and not AI similarity (yet).** The smarter alternative is *embeddings* —
+using a model to judge whether two things "mean" something similar, even with no words in
+common. That's more powerful but heavier: it needs a model, can't reliably run every second
+on your machine, and is fuzzier to query. The landscape research shows the cheap signal
+(same file / same hunk) is the proven win, so clair starts with simple list-overlap and
+**adds semantic matching later as an upgrade to this same step — never a blocker.**
 
 > The consumer side — what represents *"my current work"* (my open/edited paths, touched
 > symbols, active tags) — is defined in the architecture spec, not here.
