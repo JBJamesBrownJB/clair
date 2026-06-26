@@ -11,7 +11,7 @@
 | # | Feature | Grain | Status | One-liner |
 |---|---------|-------|--------|-----------|
 | 1 | Zero-config enrollment | — | target | One command and you're in the ambient layer, forever. |
-| 2 | Presence statusline | L0 | target | clair's own line in Claude Code: who's active, where. |
+| 2 | Proximity statusline | L0 → L1 trigger | target | clair's own line in Claude Code: ambient presence that escalates as relevance closes in. |
 | 3 | Relevance escalation | L0→L1 | idea | The right blip rises out of the noise and surfaces to you. |
 | 4 | The five clair kinds | L0/L1 | idea | What can surface: presence, collisions, decisions, incidents, findings. |
 | 5 | Emitting a clair | L1 | idea | Your AI distils what you did and shares it, loop-safe. |
@@ -33,15 +33,34 @@ the gate for what reaches your agent (see product.md, *Human-first*).
 
 ---
 
-## 2. Presence statusline — the always-on L0 surface
+## 2. Proximity statusline — the always-on radar
 
-clair renders its **own line in the Claude Code statusline**: a live, glanceable
-headline of who else is in the repo and roughly where. This is **Tier 0** —
-~free, always on, the cheapest grain of awareness.
+clair renders its **own line in the Claude Code statusline**, and it is not a static
+counter — it is a **proximity radar**. At rest it shows ambient presence (**Tier 0**:
+~free, always on). As a peer's activity closes in on *your* work, the same line
+**escalates** — adding specificity and color — until, at the threshold, it becomes the
+**trigger** that fires the full L1 surfacing elsewhere.
 
 ```
-◈ clair · 3 active · rajiv ✎ auth.rs · maya ✎ api/ · ⚠ 1 merge-risk
+◈ clair · 3 active                          (grey  — resting, pure L0 ambient)
+◈ clair · rajiv ✎ auth.rs  ‹your file›      (amber — warming, spatial proximity)
+⚠ clair · merge-risk · rajiv auth.rs:40     (red   — hot; this IS the L1 trigger)
 ```
+
+**"Proximity" unifies both escalation triggers.** *Spatial* proximity — you're editing
+in/near a file or hunk a peer is active in (cheap, local, deterministic) — and *semantic*
+proximity — a peer's decision or finding bears on what you're doing (the hard relevance
+problem of feature 3). The line visualizes **distance closing** in either sense, so one
+surface serves the cheap triggers now and the hard one later without changing shape.
+
+**The statusline spans L0 up to the L1 _trigger_, but not the L1 _body_.** A status row
+is too small for a diff or a conclusion. It is the dial and the alarm; crossing the
+threshold fires a roomier surface (banner / notification) that carries the actual detail.
+
+**Discipline — the radar must stay quiet.** Same failure mode as "a banner that's always
+on is a banner nobody reads," applied to color: the line is grey and minimal almost
+always, and earns a color change only when proximity genuinely rises. An ever-flashing
+statusline is noise with extra steps.
 
 **Why it's the right home for L0.** The statusline is local, costs no API tokens, and —
 crucially — Claude Code's `refreshInterval` re-runs the command on a timer, so the line
@@ -74,6 +93,10 @@ to get right; it is not a blocker.
 The engine that lifts a blip from background noise (L0) to a surfaced detail (L1) when it
 bears on *your* current work. Escalation is **human-first**: a relevant clair surfaces to
 you (statusline → notification/banner); routing it into the agent is your deliberate act.
+
+The **proximity statusline (feature 2) is the visible front of this engine** — the radar
+*is* what escalation looks like to a human, graduating from grey ambient presence to a red
+L1 trigger as distance closes.
 
 Cheap, local triggers are tractable now (file overlap, merge-region divergence). The hard
 part — relevance across a whole repo of solo agents (matching a clair's *about* against
