@@ -15,6 +15,11 @@
 | 3 | Relevance escalation | L0→L1 | idea | The right blip rises out of the noise and surfaces to you. |
 | 4 | The five clair kinds | L0/L1 | idea | What can surface: presence, collisions, decisions, incidents, findings. |
 | 5 | Emitting a clair | L1 | idea | Your AI distils what you did and shares it, loop-safe. |
+| 6 | Ask clair (on-demand query) | L0→L2 pull | target | Ask in plain language: "who's in the repo?", "what's rajiv doing?" |
+
+> **Two legs.** Features 2–4 are the **push** leg (clair surfaces what's relevant). Feature
+> 6 is the **pull** leg (you or the agent ask on demand). Push is the magic; pull is the
+> guarantee — it works even when the relevance engine doesn't.
 
 ---
 
@@ -134,7 +139,46 @@ orphan shadow ref (see product.md, *How it rides on git*); never to your working
 
 ---
 
-> **Status note.** Features 1–2 are concrete and feasible today; 3 is the open research
-> problem; 4–5 depend on the emit/transport and escalation design still being settled.
-> The detailed ref/transport layout is forward architecture work, tracked separately from
-> this product-level list.
+## 6. Ask clair — on-demand query (the pull leg)
+
+Everything above is **push** — clair surfaces what's relevant. This is **pull**: you, or
+your agent, ask clair directly, in plain language.
+
+```
+"who's in the repo?"            → the active peers and where they are (presence, listed)
+"what's rajiv doing?"           → rajiv's recent activity: his shared prompts/conclusions
+"has anyone touched auth.rs?"   → blips whose about-key matches that path
+```
+
+**It's the same data, accessed the other way.** A query reads the blip store you already
+build for the push leg — "who's in the repo" lists presence (L0); "what's rajiv doing"
+pulls one peer's L1 detail; "show me everything rajiv concluded today" is the explicit L2
+deep pull. One store, queried at whatever grain the question demands.
+
+**Why it matters — the reliable floor.** Relevance escalation (feature 3) is the open hard
+problem and may stay imperfect for a long time. Pull always works: even when the radar
+*doesn't* surface something, asking does. Push is the magic; **pull is the guarantee.**
+
+**Agent-facing, and the one place the agent may initiate.** The push leg is human-first.
+But *reading* writes nothing, so a query is loop-safe — which means the agent can call it
+mid-task (*"before I edit auth.rs, what has rajiv concluded there?"*). Exposed as an MCP
+tool, natural language maps straight onto it. This is clair as an agent-queryable awareness
+layer — the agent-facing angle the landscape research flagged as a differentiator (see
+[research/landscape.md](research/landscape.md)).
+
+**Bounds to keep honest:**
+
+- **Loop-safe by construction.** A query is inbound/read-only; asking "what's rajiv doing"
+  must never emit a clair (the two-pipe rule, same as escalation).
+- **A pull is a fetch.** Answering reads the latest shadow-ref state, so a query triggers a
+  background fetch first; freshness is bounded by what peers have pushed.
+- **Scope = what was emitted.** A query returns peers' *shared* activity (their blips,
+  bounded by TTL), never their private session. "What's rajiv doing" answers from what rajiv
+  chose to share, not his keystrokes.
+
+---
+
+> **Status note.** Features 1–2 and 6 are concrete and feasible today; 3 is the open research
+> problem; 4–5 depend on the emit/transport and escalation design still being settled. The
+> detailed ref/transport layout is forward architecture work, tracked separately from this
+> product-level list.
