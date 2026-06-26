@@ -181,3 +181,4 @@
 {"id":"019f036c-8cc6-7c22-bdef-406293d588b1","author":"JB","kind":"summary","text":"That's a proper architecture brainstorm, not a one-liner. Want to open that next, or leave product.md as the resting point for now?","ts":"2026-06-26T10:14:33Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
 {"id":"019f036d-51fe-7672-9195-f47b740c7353","author":"JB","kind":"prompt","text":"product.md is the same!?","ts":"2026-06-26T10:15:23Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
 {"id":"019f036d-91c9-7be1-a5b3-6bda05153ede","author":"JB","kind":"summary","text":"Want me to do anything else, or is it just the editor view?","ts":"2026-06-26T10:15:40Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
+{"id":"019f0370-4b7b-7382-8799-3e206098a7ce","author":"JB","kind":"prompt","text":"oh, for some reason its not showing in the markdown preview view, broken markdown?","ts":"2026-06-26T10:18:38Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
