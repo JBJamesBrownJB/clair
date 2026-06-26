@@ -71,6 +71,21 @@ lights up (grey → amber → red). The comparison is plain and mechanical:
 A same-file hit counts for more than a shared tag (it's a stronger signal), so the score is
 a **weighted** tally of the overlaps.
 
+> **Two terms this rests on — worth knowing:**
+>
+> - **glob** — a file pattern with wildcards, so a blip can name a *region* instead of one
+>   file. `*` matches anything within a folder level (`src/*.rs` = `.rs` files directly in
+>   `src/`); `**` matches across folders at any depth (`src/**` = everything under `src/`).
+>   The everyday case is a plain folder prefix: `src/auth/` covers anything inside it.
+> - **intersection** (the math symbol `∩`) — the *overlap* between two lists. If your open
+>   files are `{auth.rs, login.rs}` and a blip's paths are `{auth.rs, config.rs}`, the
+>   intersection is `{auth.rs}` — the one in common. An **empty** overlap means the blip
+>   is irrelevant to you; a **bigger** overlap means a higher relevance score.
+>
+> Put together: glob is how a blip says *which files it's about*; intersection is how clair
+> checks whether *your* files fall inside that set. Run every second, that one check is what
+> lights up the radar when a peer's work drifts into yours.
+
 **Example.** You're editing `src/auth.rs`, in the function `check`, topic `auth`. A blip's
 `about` is `{ paths: ["src/auth.rs"], symbols: ["AuthMiddleware"], tags: ["auth"] }`. Same
 file ✓ (strong) and same tag ✓ (weak) → high score → the radar escalates. There's no AI and
