@@ -1,5 +1,9 @@
 # clair — Seed Ideas
 
+> 🗄️ **Historical / superseded.** The committed product spirit now lives in
+> [product.md](product.md) — repo-level ambient awareness via progressive disclosure.
+> This page is the original branch-scoped, pairing-first vision, kept for provenance.
+>
 > ⚠️ **Speculative.** This is thought-provoking starter material, not a spec or a
 > committed design. Some of it is probably wrong. Mine it for ideas; don't treat it
 > as architecture. The living architecture lives elsewhere once we build it.

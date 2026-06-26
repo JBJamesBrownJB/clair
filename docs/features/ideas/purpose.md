@@ -1,3 +1,6 @@
+> 🗄️ **Superseded scratch.** The conclusions of this thinking are now committed in
+> [../../product.md](../../product.md). Kept as a record of how the pivot was reasoned.
+
 what is the purpose of clair?
 
 - pairing on a feature, same branch? I think this is a dud and competes against other live coding stuff
@@ -25,3 +28,9 @@ Maybe we remove all the pair stuff and instead just enroll everyone.
 
 In this new world, the signals being sent from each 'client' need to be flares to 'catch' the right scenarios.
 Maybe things like, Rajiv is working over in this part of the code, implimenting this feature....
+
+We need to flesh out more specific features:
+
+I think we should also come up with a 'standard' for a 'clair' blip (thinking radar), im guessing it should be similar to agentskills.
+
+Wait, why couldn't we just dynamically create ephemeral skills in their repo? Iguess because skills are not picked up mid session?
