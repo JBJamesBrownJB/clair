@@ -76,6 +76,29 @@ The first two are cheap and local. The last three are **highlights** — they re
 sender's AI classifying intent, so the right things get raised and the noise stays
 noise.
 
+## How it rides on git (the moat)
+
+The principles below sound like magic — no server, nothing to run, ephemeral — until
+you see the trick that makes them literal. clair **never touches your working
+history.** Its entire state lives on **orphan shadow refs**: branches with no ancestry
+to your code, never merged, meant to be thrown away.
+
+That one move is the IP:
+
+- **No server, no new infra.** Shadow refs sync over the git remote you already have
+  (`fetch` / `push`). The remote *is* the whole backend — clair adds zero services.
+- **Never pollutes your repo.** The refs sit off to the side; they never show up in
+  your log, never merge, never conflict with the work you're actually doing.
+- **Ephemeral by construction.** Refs and the TTL'd blips on them are pruned and
+  deleted as a matter of course — *"not an audit log"* enforced by the storage itself.
+- **Read-only by default.** What you've already seen is tracked in a **local-only
+  cursor** that is never pushed, so receiving a clair writes nothing back — the ground
+  of two-pipe loop-safety.
+
+The *concept* is settled. The exact ref layout for repo-scoped, TTL'd blips is open
+design — the archived branch-scoped scheme (`clair/ready` + one `clair/<branch>` log)
+is the starting point, not the answer.
+
 ## Principles
 
 - **Fat client, dumb pipe.** All smarts run locally. No servers.
