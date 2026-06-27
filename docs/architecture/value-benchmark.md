@@ -170,6 +170,29 @@ to test clair against it. This is exactly the written kill-criterion from
 - **Building the arena is real work** — the app, the overlapping features, and the curated debt
   are upfront investment, but they're a one-time fixture.
 
+## The runner — headless agents, one flag for clair
+
+Each slice agent is a **headless Claude Code run** (`claude -p`, or the Agent SDK for structured
+token/result capture) executing **non-interactively** in **its own git worktree inside a
+disposable container** (skip-permissions + arbitrary command execution demands a sandbox, not
+the host). Per agent: the feature-intent prompt (its own feature only — information asymmetry),
+rules (work in your worktree, write tests, commit when done, **never wait for input, decide and
+continue if blocked**), pre-granted permissions, a **max-turns / token budget cap**, and freedom
+to spawn sub-agents (token accounting aggregates them).
+
+- **Completion is bounded, not guaranteed.** A non-interactive agent can still stall, finish
+  early, or hit the cap — so the **hidden gate decides** whether it truly completed;
+  *did-not-complete within budget* is a real, counted outcome (the success-rate axis), not a
+  retry.
+- **Arm A vs Arm B = clair plugin off vs on**, in the *identical* harness (resolves the
+  injection question): same spin-up, prompts, and containers; the only difference is whether the
+  clair plugin/MCP is configured. Keeps B testing *clair*, not bespoke glue — a one-flag toggle.
+- **The loop:** spawn N agents → wait → **merge the worktrees** (collisions surface here) → run
+  the hidden gate → score. × K trials × arms × levels.
+- **Agent-agnostic by design.** Start with headless Claude (scriptable, available); keep the
+  runner pluggable so Codex/Cursor/etc. can slot in later (per-agent axis — conflict behaviour
+  varies ~2× across agents).
+
 ## The concrete arena
 
 Locked: **`system-register`** — see [benchmark-arena.md](benchmark-arena.md) for the

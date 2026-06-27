@@ -111,5 +111,7 @@ non-completers count as failures.
 3. **Slice balance** — slice #1 is heavier than #2–#5; rebalance, or accept (real features vary).
 4. **Seed size** — how many systems/risks make the visualisations meaningful without bloating run
    cost.
-5. **How clair attaches to the agents** in Arm B (plugin/MCP/hooks) without hand-coding the
-   coordination — the cleanest injection point for the Java/React agent harness.
+5. **How clair attaches to the agents** in Arm B — *resolved:* the runner spins up **headless
+   Claude Code** agents (one per slice, own worktree, own container), and **Arm B is just the
+   same harness with the clair plugin/MCP enabled** — a one-flag toggle, no bespoke glue (see
+   [value-benchmark.md](value-benchmark.md), *The runner*).
