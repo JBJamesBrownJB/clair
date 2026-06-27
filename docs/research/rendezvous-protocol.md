@@ -21,19 +21,32 @@ This is the difference between **awareness** (the field's gap clair already targ
 agent-centric thesis points at — but it raises the stakes, because agents would change
 behaviour based on peer input.
 
-## The shape — four phases
+## Staged: context-swap first, negotiation later
+
+The full vision is negotiation (agents agree a plan), but that drags in the hardest problems —
+convergence, termination, agreeing, acting on an agreement. So it's **staged**, cheapest-safest
+first:
+
+- **v1 — Scoped context-swap (decided).** Beacon → handshake → exchange detail → **each agent
+  independently acts on its own richer context.** *No agreement machinery.* The collision
+  dissolves not because they negotiated, but because **they stopped being blind to each other.**
+  Targets the **spatial** case first (concrete, mechanical, easy to show value).
+- **v2 — Negotiation.** Add proposals, convergence, who-owns-what / ordering.
+- **v3 — Auto-resolution.** Narrow mechanical cases act without further exchange.
+
+### The v1 phases
 
 1. **Beacon** (broadcast, inspectable, safe). The proximity trigger. Minimal structured signal
-   only — branch/worktree/glob + kind. No content. (Idea A.)
-2. **Handshake** (pairwise, opt-in). The two instances acknowledge and open a **scoped pairwise
+   only — branch/worktree/glob + kind — **plus the instance's public key**. No content. (Idea A.)
+2. **Handshake** (pairwise, opt-in). The two instances open a **scoped encrypted pairwise
    channel** — e.g. a ref `refs/clair/rv/<a>~<b>`. Either side may decline (consent).
-3. **Exchange** (bounded rounds, scoped disclosure). Each shares *only* the detail needed to
-   deconflict: intended change, touched symbols/signatures, the decision/assumption in play —
-   "I'm changing `AuthMiddleware`'s signature; are you calling it?" / "handlers now assume
-   authn — adjust." Through the egress gate, or E2E-encrypted (below).
-4. **Resolution** (human-gated proposal). The agents converge on a *proposed* plan — ordering,
-   who-owns-what, an assumption to adopt — and surface it to each driver for approval. Bounded
-   rounds; **no convergence → escalate to the humans.**
+3. **Exchange** (bounded rounds, scoped, encrypted). Each shares *only* the detail needed to
+   deconflict: intended change, touched symbols/signatures — "I'm changing `AuthMiddleware`'s
+   signature; are you calling it?" Encrypted to the peer's key (see
+   [security-protocol.md](../architecture/security-protocol.md), Level 1).
+4. **Act** (v1: **autonomous**, no human gate). Each agent uses the richer context to adjust its
+   own plan. No convergence step, no "who yields" — that's v2. Safety rests on the **trusted-repo
+   boundary** (Level 1), the egress gate, and peer-data robustness — not a human gate.
 
 ## Why this *improves* the privacy story
 
@@ -47,11 +60,11 @@ The beacon raised the "auto-push is risky" crux. The protocol answers it in two 
   secret — the detailed exchange is then **end-to-end encrypted, readable only by the two**,
   even though the ref is fetchable by all. Sensitive detail never broadcasts; it goes encrypted
   to one peer.
-  - **Caveat:** unauthenticated DH defeats *passive* eavesdroppers (other peers, the host), not
-    an *active* MITM — which needs identity bound to keys (the deferred hardening from the
-    *Trust model*). Honest framing: confidential against the realistic threat (a co-worker
-    reading refs), not against an active attacker with push access, until keys bind to
-    identity.
+  - **Caveat → resolved by the trust axiom.** Encryption with trust-on-first-use keys defeats
+    *passive* eavesdroppers (the host, anyone outside the repo), not an *active* MITM with push
+    access. But per [security-protocol.md](../architecture/security-protocol.md)'s axiom, a MITM
+    with push access **already owns the codebase** — so this is out of scope at **Level 1**
+    (trusted repo) and closed at **Level 2** (identity-bound keys) for untrusted/public settings.
 
 ## Invariants it must hold
 
@@ -59,13 +72,16 @@ The beacon raised the "auto-push is risky" crux. The protocol answers it in two 
   guards against. So: explicit turn-taking, a hard round cap, and **converge-or-escalate** —
   a negotiation with a termination condition, never an open-ended chat (which would loop and
   burn tokens).
-- **Resolution is a _proposal_, human-gated.** Per the locked invariant (*acting on peer input
-  stays human-gated*), agents may negotiate a plan; **executing** it (yielding, rebasing,
-  changing approach) is acting on untrusted data → the driver approves. Possible narrow
-  auto-exception for purely mechanical ordering, to be earned, not assumed.
-- **Counterparty is untrusted.** Forged/adversarial peers are possible (self-asserted
-  identity) — proposals are reviewed, never executed blindly; encryption gives confidentiality,
-  not authenticity.
+- **v1 acts autonomously — safety moves to the trust boundary.** v1 has no human gate (the
+  product's whole premise is agent-side efficiency). The anti-injection job of the old
+  "human-gated" invariant is taken over by **Level 1** (push access == trusted teammate; a
+  forger already owns the repo), the egress gate, and peer-data robustness. **Human-in-the-loop
+  is a future, optional, additive _mode_** — when on, every collision ends in a **resolution
+  report** to the driver to approve before acting (see
+  [security-protocol.md](../architecture/security-protocol.md), *Operating modes*).
+- **Counterparty trust is bounded by the security level.** At L1, forgery is out of scope (the
+  trust axiom); at L2, identity-bound keys make the counterparty authentic. Encryption gives
+  confidentiality at every level; authenticity arrives at L2.
 - **Consented on both ends.** Either side may decline the handshake; declining falls back to
   the plain beacon ("a human should look").
 

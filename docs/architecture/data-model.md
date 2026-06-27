@@ -64,8 +64,11 @@ invariant that makes this safe:
 > **human-gated**. An agent-initiated pull (feature 6) may **READ**, never **ACT**.
 
 This is the defense against a forged `incident`/`finding` becoming indirect prompt injection
-into a teammate's agent. Cryptographic binding of `principal` is noted as future hardening
-(see Open Questions), not a v1 mechanism.
+into a teammate's agent. The full trust model — the *"repo access is the trust boundary"*
+axiom, the **elevation levels** (L1 trusted-repo encryption → L2 identity-bound keys), and the
+**auto vs human-in-the-loop modes** — lives in
+[security-protocol.md](security-protocol.md). Cryptographic binding of `principal` is the
+Level-2 hardening, not a v1 mechanism.
 
 ## Identity — principal and instance
 
