@@ -250,3 +250,4 @@
 {"id":"019f0994-6d73-7813-bf50-94fbba4133a8","author":"JB","kind":"prompt","text":"ok fine, commit, push","ts":"2026-06-27T14:55:49Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
 {"id":"019f0994-b9c3-7680-a35f-b3537f493673","author":"JB","kind":"summary","text":"Clean tree, 8 commits ahead. Pushing.","ts":"2026-06-27T14:56:09Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
 {"id":"019f0996-a971-77e2-9fa5-9d3b334900ed","author":"JB","kind":"prompt","text":"yes, add the explainers for dumb pricks like me please","ts":"2026-06-27T14:58:16Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
+{"id":"019f0997-7a44-72d1-8008-bd5e9f9afc66","author":"JB","kind":"summary","text":"So now anyone hitting any of the three docs gets the plain-English version up front, and there's one canonical place the terms live. (And the LF→CRLF warnings are just Windows line-ending noise — harmless.)","ts":"2026-06-27T14:59:10Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
