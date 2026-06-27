@@ -61,6 +61,12 @@ The harness pins `legacy` (migration base), `arena-base-v1` (standard base), and
 > empirical proof the app still runs *and* the deep familiarity needed to author the hidden gate
 > in step 3 — and it is the exact task the migration-concurrent scenario later runs against.
 
+> **Where the revive runs is a separate decision** (the app needs a Linux + Docker toolchain the
+> Windows dev host lacks) — see [arena-build-environment.md](arena-build-environment.md). Current
+> frontrunner: **GitHub Actions as the Linux/Docker test bed** (transform on Windows, validate in
+> CI). Recon so far: frontend builds green on Node 24; backend tests require Docker
+> (testcontainers Postgres); `legacy` branch cut.
+
 ## Shared substrate — the contention map
 
 Every slice must cut through these shared layers; that overlap *is* the collision surface:
