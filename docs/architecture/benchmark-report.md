@@ -117,11 +117,95 @@ textual-conflict reduction. *A conflict-count-only improvement would be reported
 4. If no arm beats A on task success → **clair NOT validated on this config** (the kill-criterion
    firing — a real, publishable outcome).
 
+## How reports are minted & stored
+
+Same pattern as the [statusline digest](stats-digest.md): **emit raw immutable facts, derive
+every view from them, never bake truth into a render.** Three layers, each a pure function of the
+one below:
+
+1. **Record** — one JSON file per **trial** (one fleet → merge → gate). Immutable, append-only,
+   and **self-describing**: it embeds its *full config* so a number is never orphaned from the
+   conditions that produced it. Raw truth.
+2. **Rollup** — derived per **config** (arm × level): medians + p10/p90 over the K records.
+   Recomputable from records, therefore disposable.
+3. **Render** — the `report.md` (the format above) **and** the viewer. Both read the rollup;
+   neither is a source of truth. The mock above is a *render target*, not a hand-authored doc.
+
+**The record** (one trial) — sketch; `schema_version` + reader-ignores-unknown, same rule as the
+[wire format](data-model.md):
+
+```json
+{
+  "schema_version": 1,
+  "run_id": "sysreg-<config-hash>-<trial>",
+  "minted_at": "<iso8601, stamped by the harness>",
+  "config": {
+    "arena": { "app": "system-register", "tag": "<git-tag>", "seed": "fixed-30-systems", "debt": "clean" },
+    "arm": "B", "clair_level": "beacon",
+    "agent": { "harness": "claude-code-headless", "model": "claude-opus-4-8", "version": "<build>" },
+    "k_index": 3, "k_total": 10,
+    "integration": "mechanical-merge",
+    "budget_cap": { "tokens": 6000000, "wall_clock_min": 90 },
+    "clair_sha": "<git sha of clair under test>",
+    "container": "<image digest>",
+    "prompt_hashes": { "slice1": "...", "slice5": "..." }
+  },
+  "outcome": { "all_pass": false,
+    "per_feature": { "auth": true, "history": true, "heatmap": false, "graph": false, "search": true },
+    "completed_within_budget": true },
+  "cost": { "build_tokens": 4200000, "rework_tokens": 900000, "sub_agent_tokens": 1100000, "wall_clock_min": 38 },
+  "conflicts": {
+    "textual": { "count": 4, "max_size_loc": 120 },
+    "semantic": { "unprotected_endpoints": 2, "duplicate_projections": 1, "regressions": 0 } },
+  "collisions": [ { "kind": "unprotected_endpoint", "endpoint": "/api/search", "blind_to": "auth" } ],
+  "gate": { "suite_sha": "<held-out suite version>", "passed": 158, "failed": 5, "total": 163 },
+  "artifacts": { "merged_diff": "<path|digest>", "transcript_dir": "<path>" },
+  "excluded": null
+}
+```
+
+**Storage layout** — immutable records, derived everything-else:
+
+```
+benchmark/results/<arena-tag>/
+  runs/<config-hash>/<trial>.json   # immutable atomic records — raw truth
+  rollups/<config-hash>.json        # derived stats (medians + spread) — regenerable
+  reports/<config-hash>.md          # rendered human report
+  index.json                        # catalog the viewer reads
+```
+
+- **JSON, not YAML** — the harness writes it, nobody hand-edits it, it's `jq`-able and
+  unambiguous.
+- **Commit the light layer** (records + rollups + index) — small, diffable, gives free trend
+  tracking across clair versions (on `main` or a dedicated `results` branch).
+- **Keep the heavy layer out of git** — merged diffs and agent transcripts are referenced by
+  path/digest from the record and live in a local/artifact store, not version control.
+- **`minted_at` is stamped by the harness**, never inside a workflow script (scripts can't read
+  the clock); `run_id` is a content hash of the config + trial index, so it's deterministic.
+
+## The viewer
+
+A **local-first static site** (`benchmark/viewer/`) — a single `index.html` + JS, or an
+Observable Framework build — that loads `index.json` and the records and renders the same tables
+as `report.md` *plus* interactive compare/graph. **Zero infra, runs offline, diffable, deploys to
+GH Pages** if it's ever worth sharing. It's a *lens* on the JSON, never a service that owns data.
+
+Charts that earn their place:
+- **Arm × level grouped bars**, one panel per headline metric.
+- **RCC-vs-k curve** — the money chart: the coordination-tax curve clair must *flatten*.
+- **Per-slice all-pass small-multiples** — which feature each arm dies on.
+- **Trial-distribution box/strip plot** — so spread is visible, not hidden behind a median.
+- **Trend over time / clair version** — regression-watch as clair evolves.
+
+*Alternative considered:* a small Streamlit/Python app — nicer for ad-hoc analysis, but it needs
+a runtime and a server. Rejected for v1: the data is already JSON and static keeps the viewer a
+lens, not a service.
+
 ## Open questions
 
 1. **Significance method** for small K (bootstrap CIs vs a simple sign test) — keep it honest at
    K=10–20.
 2. **One report per config**, plus a roll-up across debt/seed/agent variants? (Likely a per-run
-   report + a matrix summary.)
-3. **Machine-readable companion** (JSON) alongside the human report, for trend tracking across
-   clair versions.
+   report + a matrix summary — the `index.json` catalog is the seam for the cross-config view.)
+3. **Machine-readable companion** — *resolved:* the per-trial JSON **record** is the canonical
+   artifact; the `report.md` and viewer are renders derived from it (see above).
