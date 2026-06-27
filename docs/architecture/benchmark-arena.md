@@ -40,6 +40,27 @@ gold-standard suite can actually be authored).
 > absolute success and more variance. It hits every arm equally (the A−B delta stays valid), but
 > monitor early runs; if everything fails, signal is hard to read.
 
+## Branches, reference & build order
+
+The arena stays its **own repo** (`JBJamesBrownJB/system-register`) — pinned by tag, never
+vendored into clair (the runner clones it fresh per trial; rationale + the reference-branch
+guardrail live in [value-benchmark.md](value-benchmark.md#arena-layout--external-branched-pinned-by-tag)).
+
+1. **Cut `legacy`** from the current clone — the original Quarkus 1.7 / CRA3 stack, frozen. Base
+   for the migration-concurrent scenario.
+2. **Upgrade `main` to green:** frontend CRA3 / React16 / **MUI v4→v5** → modern (Vite or CRA5 /
+   React18); backend **Quarkus 1.7→3.x**, Java 11→21, **`javax`→`jakarta`** sweep; **Keycloak**
+   realm-export migrated to a current image. Tag **`arena-base-v1`** once green.
+3. **Build `reference`** = `main` + all 5 slices integrated + the hidden gate passing. Tag
+   **`arena-reference-v1`**. Held out from agents.
+
+The harness pins `legacy` (migration base), `arena-base-v1` (standard base), and
+`arena-reference-v1` (gate) by tag → immutable SHA.
+
+> **Revive-first is real arena prep, not a detour:** the upgrade in step 2 doubles as the
+> empirical proof the app still runs *and* the deep familiarity needed to author the hidden gate
+> in step 3 — and it is the exact task the migration-concurrent scenario later runs against.
+
 ## Shared substrate — the contention map
 
 Every slice must cut through these shared layers; that overlap *is* the collision surface:

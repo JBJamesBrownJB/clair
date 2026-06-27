@@ -61,6 +61,35 @@ A small but **realistic** application, pinned at a git tag for reproducibility:
   error handling, a fragile shared type, a missing abstraction that invites copy-paste. Debt
   that funnels agents through the *same* files **amplifies collisions** — that's the point.
 
+## Arena layout — external, branched, pinned by tag
+
+The arena (`system-register`) stays its **own repo** — never vendored into clair. The runner
+clones it **fresh per trial** (each agent needs a clean worktree), so a vendored copy would never
+be the thing that runs; reproducibility comes from **pinning an immutable ref**, not co-location.
+clair holds the *harness*; the arena is a *swappable, pinned fixture*.
+
+Three branches on the arena:
+- **`legacy`** — the original stack frozen as-cloned (Quarkus 1.7 / CRA3). Base for the
+  *migration-concurrent* scenario.
+- **`main`** — upgraded to a current, green stack. Base for the *standard* scenario (features not
+  yet added — agents add them).
+- **`reference`** (held out) — `main` + all 5 features integrated and passing. **Never seen by
+  benchmark agents.**
+
+**The `reference` branch earns its keep three ways:** (1) it **proves a coherent all-5 solution
+exists**, so a failing arm is attributable to *coordination*, not an impossible task — the
+attribution backbone; (2) it is the **source of the hidden acceptance gate** (behavioral tests +
+seed-data expected values); (3) a supporting "built-as-intended" quality oracle. **Guardrail:**
+the gate tests *behavior* ("every endpoint authz-gated," "search returns seeded systems"),
+**never structure** ("matches reference's classes") — diff-matching would measure conformance,
+not capability, and punish valid divergence.
+
+**Pinning — done last, once each ref is frozen and green:** `legacy` is immutable on cut; tag
+`main` → `arena-base-v1` once the upgrade is green; tag `reference` → `arena-reference-v1` once
+the 5 features integrate and the gate passes. Use **annotated tags** (readable label → immutable
+SHA); the harness config references tags. Revising the arena later = a **new tag** (`v2`); past
+runs keep their old tag, so cross-version comparability is preserved.
+
 ## The workload — 5 thin-slice features
 
 Five **thin-slice** features, each cutting through **all layers** (frontend → service → auth →
@@ -102,6 +131,25 @@ The same workload run under different conditions; clair's value is the **delta**
 **Capability ablation within B.** Run B at increasing clair levels — *presence only* → *+
 proximity beacon* → *+ context-swap* — to attribute **which capability earns the value** (and
 catch the case where the cheap beacon already captures most of it).
+
+### Scenario configs (what the workload runs as)
+
+The same arms run under two scenarios, both terminating at the *same* modern-stack + 5-features
+state → **the same `reference` gate judges both**:
+
+- **Standard (control / calibration).** Base `main` (already upgraded); 5 feature agents. The
+  cheap **problem-in-vivo first experiment** runs here (mechanical merge, no resolver).
+- **Migration-concurrent (flagship).** Base `legacy`; 5 feature agents **+ 1 stack-migration
+  agent** running concurrently; **resolver in the loop**. Maximal cross-cutting churn → the
+  showcase demo *and* a high-signal measurement — *"ship 5 features while migrating the entire
+  stack, no human untangling the wreck."* **Caveat that keeps it honest:** raw textual-conflict
+  rate is *intentionally ignored* here (≈100% in both arms — a global `javax`→`jakarta`/MUI sweep
+  collides with everything); value is read from **rework tokens, cost-to-all-pass, and the
+  semantic gate**, never conflict count. Kept **out of the first experiment** — a resolver-less
+  merge would fail in every arm and discriminate nothing. It stresses a *different* failure mode
+  (mass-rebase / freeze-coordination) than the standard batch (duplication / divergent-arch /
+  silent-semantic), and it's where clair's "global migration in flight — rebase/gate" signal is
+  arguably strongest.
 
 ## Integration: build → fixed-merge → gate (and what we measure where)
 
