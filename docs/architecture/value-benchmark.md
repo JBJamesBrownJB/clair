@@ -170,10 +170,17 @@ to test clair against it. This is exactly the written kill-criterion from
 - **Building the arena is real work** — the app, the overlapping features, and the curated debt
   are upfront investment, but they're a one-time fixture.
 
+## The concrete arena
+
+Locked: **`system-register`** — see [benchmark-arena.md](benchmark-arena.md) for the
+instantiation (the event-sourced CQRS app, the shared-substrate map, the 5 grounded slice
+features, the deterministic seed, and the hidden acceptance gate).
+
 ## Open questions
 
-1. **Arena: build vs adopt.** Bespoke app vs fork an existing realistic sample; which stack
-   (one mainstream stack keeps agent competence high and variance low).
+1. **Arena: build vs adopt.** *Resolved:* adopt `system-register` (decontaminated + team-owned
+   → the two validity axes). Stack is Java/Quarkus — an agent-competence watch-item, controlled
+   across arms. See [benchmark-arena.md](benchmark-arena.md).
 2. **N agents / K trials** to start — smallest configuration that still produces collisions.
 3. **The exact 5 features** and their **touch-set overlap matrix** (the collision design).
 4. **Scoring split** — how much pure-objective vs LLM-judge; the rubric for "rework" and
