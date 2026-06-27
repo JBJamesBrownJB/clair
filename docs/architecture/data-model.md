@@ -299,9 +299,10 @@ wire object (see [stats-digest.md](stats-digest.md)):
    be GC-able. Since clair bodies are tiny (a sentence / a region), **carry inline by
    default**; reserve referenced-lazy for genuinely large bodies.
 2. **Emit safety** — emit exposure == remote read ACL, so emit must never publish content the
-   author hasn't committed. Should high-sensitivity kinds (`incident`/`finding`) be opt-in or
-   scrubbed harder given embargo/pre-disclosure risk? Secret/PII scrubbing of
-   `headline`+`about`+`body` is a **named requirement** owned by the emit/transport spec.
+   author hasn't committed. Secret/PII scrubbing of `headline`+`about`+`body` is specified as
+   the two-engine egress gate in [emit-redaction.md](emit-redaction.md); the open part is
+   whether high-sensitivity kinds (`incident`/`finding`) should be opt-in or
+   HeadlineOnly-by-default given embargo/pre-disclosure risk.
 3. **Cryptographic binding of `principal`** — future hardening so identity isn't purely
    self-asserted (see *Trust model*). Out of scope for v1; the untrusted-data invariant is
    the v1 control.

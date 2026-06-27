@@ -213,8 +213,10 @@ content safe: an API key in a prompt, a diff touching `.env`, a pre-disclosure v
 `finding`, or PII in a stack trace would all leak. So two constraints: (1) emit must **never
 publish content the author hasn't committed**; (2) bodies are **structured summaries of
 intent**, not raw prompt/diff verbatim by default. Secret/PII scrubbing of
-`headline`+`about`+`body` is a **named requirement** for the emit/transport spec; whether
-high-sensitivity kinds (`incident`/`finding`) should be opt-in is an open question
+`headline`+`about`+`body` is handled by a **mandatory two-engine egress gate** — a
+deterministic secrets/PII blocker plus a cautious LLM secondary filter, fail-closed and
+enforced at the type level (see [architecture/emit-redaction.md](architecture/emit-redaction.md));
+whether high-sensitivity kinds (`incident`/`finding`) should be opt-in is an open question
 (data-model.md).
 
 ---
