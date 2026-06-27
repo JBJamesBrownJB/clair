@@ -72,7 +72,10 @@ crucially — Claude Code's `refreshInterval` re-runs the command on a timer, so
 can reflect repo activity that changes *outside your session*. That is exactly the
 ambient-presence need: clair keeps a small local snapshot of the last-fetched shadow-ref
 state, a fast `clair status` command reads it, and the statusline polls it every few
-seconds.
+seconds. The line renders nothing it computes itself — it is a slice of a precomputed
+**stats digest** (schema, storage, render ladder, and the `/clair:status` dashboard in
+[architecture/stats-digest.md](architecture/stats-digest.md); the cost budget that keeps
+it free is enforced by [architecture/benchmarking.md](architecture/benchmarking.md)).
 
 **Feasibility (confirmed against Claude Code docs):**
 

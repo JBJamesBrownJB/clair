@@ -100,7 +100,9 @@ on your machine, and is fuzzier to query. The landscape research shows the cheap
 **adds semantic matching later as an upgrade to this same step — never a blocker.**
 
 > The consumer side — what represents *"my current work"* (my open/edited paths, touched
-> symbols, active tags) — is defined in the architecture spec, not here.
+> symbols, active tags) — is the `work.json` seam in
+> [stats-digest.md](stats-digest.md#the-reduce-pipeline--fetch--filter--fold--write), where
+> the reducer intersects it against the store to produce `near_you`.
 
 ## Two lifecycles — derived vs emitted
 
