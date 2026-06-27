@@ -54,9 +54,14 @@ The same workload run under different conditions; clair's value is the **delta**
 
 | Arm | Setup | Role |
 |-----|-------|------|
-| **A — Isolation baseline** | N agents, each own worktree/branch, **no awareness**, integrate (merge) at the end | the status quo clair bets against |
+| **A — Disciplined isolation baseline** | N agents, own worktrees, **no awareness**, but **with the incumbent discipline** (small PRs, one-writer-per-module where natural), integrate at the end | the *fair* control clair must beat |
 | **B — clair on** | identical, **plus clair** at a specified capability level | the treatment; value = **B − A** |
-| **C — Sequential/oracle** *(optional)* | one agent does all 5 in series | collision-free **upper bound** on quality, **lower bound** on parallel speed — the reference frame |
+| **C — Single full-context agent** | one agent does all 5 in series with global context | the **RCC ceiling** — `SR(1)`, the collision-free upper bound |
+
+> **The control must be the *disciplined* incumbent, not a naive one.** Proof-of-problem found
+> worktrees + small-PR + one-writer discipline already cut conflicts ~80%, and this skeptic
+> claim is **unrefuted**. If Arm A is a strawman (naive agents that obviously collide), a clair
+> "win" proves nothing. A has to be the real-world best practice for B − A to mean anything.
 
 **Capability ablation within B.** Run B at increasing clair levels — *presence only* → *+
 proximity beacon* → *+ context-swap* — to attribute **which capability earns the value** (and
@@ -64,22 +69,34 @@ catch the case where the cheap beacon already captures most of it).
 
 ## Metrics (dependent variables)
 
-Instrument the [proof-of-problem.md](../research/proof-of-problem.md) metric list. Grouped by
-how hard they are to score:
+The full instrument list — with real-world baselines and methods — is the metrics table in
+[proof-of-problem.md](../research/proof-of-problem.md). The evidence reshaped the priorities:
 
-**Objective / auto-scored**
-- **Tokens** — total across all agents + their sub-agents (the efficiency headline).
-- **Wall-clock** — time to *all features merged and green*.
-- **Merge conflicts** — count and size at integration (from git).
-- **Regressions** — previously-green tests broken (test-result diff).
-- **Final quality** — full-suite pass rate; do the features actually function.
-- **Duplicated work** — same thing built twice (heuristic: near-duplicate new functions/util
-  across slices).
+**The headline metrics — where clair's value actually lives ⭐**
+- **Semantic / dynamic conflict rate** — *cleanly-merged* pairs that still break compile/lint/
+  tests. Worktrees + git defuse the *textual* case, so this is the differentiator. Run the full
+  gate on **every cleanly-merged pair**.
+- **Feature-deletion / silent-regression** — a **cumulative behavioral test suite that grows as
+  each agent ships**, re-run in full after every merge. The only instrument that catches
+  "globally incoherent" damage per-branch tests miss.
+- **Relative Coordination Cost** `RCC = 1 − SR(k)/SR(1)` — the single cleanest headline: Arm C
+  (full-context single agent) vs k isolated agents, with/without clair. Sweep k → the curve
+  clair must flatten.
 
-**LLM-judged (with adversarial-verification caution)**
-- **Rework** — commits reverted/rewritten; code churned then deleted.
-- **Contradictory decisions** — two agents make incompatible choices on shared code.
-- **"Built as intended"** — a rubric judgment over each slice's diff/PR.
+**Supporting — objective**
+- Tokens (total + **rework tokens after a detected collision**); wall-clock to all-green;
+  textual merge-conflict rate + **p90/p99 magnitude (the tail)**; duplicated-work rate;
+  post-merge defect rate; intervention rate.
+
+**Supporting — LLM-judged** (adversarial-verification caution)
+- Rework, contradictory decisions, "built as intended" rubric over diffs.
+
+> **Design to FALSIFY, not confirm.** The sharpest finding: CooperBench showed inter-agent
+> communication cut merge conflicts but **did not raise task success**. So **success = end-to-end
+> task success / fewer post-merge regressions — never merely "fewer textual conflicts."** A
+> textual-conflict win with no outcome gain is the failure mode this benchmark exists to expose.
+> **Control for churn size** (bin metrics by induced LOC) so clair can't "win" by inducing
+> smaller PRs, and **keep a per-agent axis** (conflict behavior varies ~2× across agents).
 
 ## Reproducibility & statistics
 
