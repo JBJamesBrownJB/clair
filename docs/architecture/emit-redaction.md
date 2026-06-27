@@ -145,8 +145,36 @@ Rust; the value is the ruleset, and the best one is open data.
 
 **No live verification.** Unlike TruffleHog, the gate never calls a provider to confirm a key
 is live — that would be a network/phone-home on the egress path. A *suspected* secret is
-treated as a secret (fail-closed). The ruleset is data, refreshed by shipping a new clair
-version (residual *ruleset-drift* risk noted below).
+treated as a secret (fail-closed).
+
+### The matcher — adopt or contribute a Rust runner
+
+The patterns are gitleaks' (TOML regex rules); the *runner* is ours, in Rust. Rust secret-
+scanners already exist as prior art that the matcher is cheap and proven (e.g. **nosey-parker**,
+**kingfisher**, **ripsecrets**). The plan:
+
+- **Prefer adopting an existing Rust crate** that can load the gitleaks rule format and run it
+  in-process; **contribute upstream** (or publish a small `gitleaks-rs` loader crate) if no
+  clean one exists. Either way the matcher stays a thin, in-process regex+entropy pass — no Go
+  binary, no shell-out.
+- The rules are loaded from a **vendored, version-pinned** copy of the gitleaks ruleset baked
+  into the clair binary (offline, deterministic).
+
+### Keeping the ruleset current — a CI/CD job
+
+The gitleaks ruleset gets updates (new key formats appear constantly), so a stale vendored
+copy silently loses coverage. So:
+
+- A **scheduled CI/CD job** tracks the upstream gitleaks ruleset, opens a PR when it changes
+  (diff visible for review), runs the redaction test suite against the new rules, and — on
+  green — bumps the vendored pin. The ruleset is refreshed by **automation**, not by remembering
+  to do it at release time.
+- The pin is still explicit (reproducible builds; we never pull "latest" at runtime — that
+  would be a network dependency on the egress path and a supply-chain surface). Updates land as
+  reviewed, tested version bumps.
+- **Residual drift remains** across *peer* versions: a peer on an older clair screens with an
+  older ruleset (the gate protects the *sender* with *their* rules). The CI job keeps the floor
+  current; it can't retroactively upgrade what an old sender already screened.
 
 > **Caveat — ruleset drift on a P2P bus.** Peers run whatever clair version they installed,
 > so an older sender screens against an older ruleset. The gate protects the *sender* with
@@ -175,9 +203,12 @@ the trust the consent model depends on.
    the *untrusted-data* invariant enough? (Cross-ref data-model *Trust model*.)
 2. **Org allow-list** — an opt-in for teams that explicitly *want* certain paths/labels shared
    that the default PII rules would strip.
-3. **Ruleset provenance/update** — how the bundled gitleaks ruleset is pinned, audited, and
-   refreshed, given peers don't coordinate versions.
+3. **Which Rust runner** — adopt/adapt an existing crate (nosey-parker / kingfisher /
+   ripsecrets lineage) vs publish a small `gitleaks-rs` loader; settle once we audit how
+   cleanly each ingests the gitleaks TOML format.
 
 *Decided:* deterministic engine = embedded gitleaks ruleset + entropy + structured-PII,
-in-process (no shell-out, no live verification); stage-3 filter = sender's main model;
-high-sensitivity kinds = span-redact like every other kind.
+in-process (no shell-out, no live verification); the matcher is a Rust runner (adopt existing
+or contribute one); the vendored ruleset is **version-pinned and auto-refreshed by a scheduled
+CI/CD PR job** (reviewed + tested, never pulled at runtime); stage-3 filter = sender's main
+model; high-sensitivity kinds = span-redact like every other kind.
