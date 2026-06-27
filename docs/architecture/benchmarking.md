@@ -6,6 +6,11 @@
 > is the empirical backstop for the budgets asserted in [stats-digest.md](stats-digest.md)
 > and the cost claims in [../product.md](../product.md). Scope: the harness itself — scenario
 > model, metrics, runner, regression gate. It measures the system; it does not define it.
+>
+> **This is the _cost_ benchmark (deterministic): "is clair cheap/fast?"** The separate
+> [_value_ benchmark](value-benchmark.md) — "does clair improve multi-agent outcomes?" — is
+> stochastic (real app, real agents, K trials) and is the kill-criterion instrument. Don't
+> confuse the two.
 
 ## Why this exists
 
