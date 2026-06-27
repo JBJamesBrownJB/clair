@@ -7,6 +7,33 @@
 > It instruments the metrics established in
 > [../research/proof-of-problem.md](../research/proof-of-problem.md).
 
+## Plain-English glossary (read this first)
+
+This doc and its siblings use trial/research shorthand. Here's every term in plain words, hung
+on one story: **give several AI agents the same app, tell each to build a different feature at
+the same time, then check whether the finished app actually works — and do that a few different
+ways and compare.**
+
+| Term | Plain English |
+|---|---|
+| **Slice** | One feature. "Thin slice" = it cuts top-to-bottom through the whole app (frontend + backend + database), like a slice through a cake. We have **5 slices** = 5 features; each agent builds one. |
+| **Arm** | One *way of running* the experiment (the word's from medical trials: same patients, different treatment, compare results). Every arm builds the same 5 features on the same app — only the agents' setup changes. |
+| **Arm A · isolation** | Each agent works **alone, blind to the others**, in its own copy. The control group. **clair is off.** |
+| **Arm B · presence** | clair on, **lightest** setting: agents can *see that others exist* and roughly where they're working ("someone's in the auth files"). |
+| **Arm B · beacon** | clair on, **medium**: agents can also *ping a short signal* when they're about to step on each other. |
+| **Arm B · context-swap** | clair on, **heaviest**: agents actually *exchange details* about what they're building. |
+| **Arm C · ceiling** | **One** agent builds all 5 features by itself with full knowledge. Not realistic, but it's the best-possible case (one brain, nothing to coordinate) — the score to aspire to. |
+| **Ablation** | Turning clair's capabilities on *one at a time* (presence → beacon → context-swap) to see which one actually earns its keep — so we ship the cheapest level that works. |
+| **All-pass rate** | **The headline score.** Out of K tries, how often did the finished app pass *all* our hidden tests = "all 5 features genuinely work and nothing else broke." |
+| **Textual conflict** | The classic **git merge conflict** — two agents edited the same lines, git can't auto-combine. Annoying, but git *tells you*, so it's the *less* dangerous kind. **This is "the merge-conflict stat."** |
+| **Semantic conflict** | The dangerous one, and clair's whole reason to exist. Code merges **cleanly** (git is happy) but the app is **broken or wrong** because two agents made incompatible assumptions. Only the tests catch it. |
+| **Unprotected-endpoint gap** | A concrete semantic conflict: a URL that *should* require login but doesn't (the search agent didn't know the auth agent's login landed). An unlocked door git never warned about. |
+| **Duplicate projection** | Two agents independently built the *same* data-crunching code because neither knew the other was → wasted work and money. |
+| **Build tokens / cost** | How much AI compute it burned (≈ the bill). **Wall-clock** = how long it took. |
+| **RCC** (Relative Coordination Cost) | The "coordination tax." One agent alone succeeds X% of the time; run several in parallel and they trip over each other and succeed *less*. RCC = how much you lost to that tripping. **Lower = less tax.** |
+| **Hidden / held-out gate** | The secret test suite the agents never see, run by the harness *after* everything's merged. It's the impartial judge of "does the finished app truly work." Held out so agents can't game it. |
+| **The headline idea** | We lead with "does the finished app work" (all-pass rate), **not** merge-conflict counts — because the failures that hurt are the *silent* ones git doesn't flag (the unlocked door), not the noisy textual ones. |
+
 ## Two benchmarks, do not confuse them
 
 | | **Cost micro-benchmark** ([benchmarking.md](benchmarking.md)) | **Value macro-benchmark** (this doc) |

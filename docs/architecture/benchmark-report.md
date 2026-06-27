@@ -6,6 +6,14 @@
 > shape, not results. The report's verdict logic enforces the falsification discipline (a
 > conflict-count win that isn't a task-success win is **not** a pass).
 
+> **New to the terms?** *Arm, slice, semantic vs textual conflict, presence/beacon/context-swap,
+> RCC* — all defined in plain English in the [glossary at the top of value-benchmark.md](value-benchmark.md#plain-english-glossary-read-this-first).
+> Quick version: an **arm** = one way of running the experiment (A = clair off / isolated; B =
+> clair on at increasing levels; C = one all-knowing agent = the ceiling). A **slice** = one
+> feature. **All-pass rate** = how often the finished app actually works (the headline).
+> **Textual conflict** = the normal git merge conflict; **semantic conflict** = merges clean but
+> is silently broken (clair's whole point). **RCC** = the coordination tax (lower is better).
+
 ## What the report must do
 
 - Lead with a **verdict** keyed to **task success** (all-pass rate / cost-to-completion), never

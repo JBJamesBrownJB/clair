@@ -6,6 +6,13 @@
 > deterministic seed data, and the hidden acceptance gate. The *methodology* lives in
 > value-benchmark.md; this is *where it runs*.
 
+> **New to the terms?** *Arm, slice, semantic vs textual conflict, shared substrate, the hidden
+> gate* — all in plain English in the
+> [glossary at the top of value-benchmark.md](value-benchmark.md#plain-english-glossary-read-this-first).
+> Quick version: a **slice** = one feature that cuts through the whole app; the **shared
+> substrate** = the files every feature must touch (so it's where agents collide); the **hidden
+> gate** = the secret test suite that judges "does the finished app actually work."
+
 ## The app
 
 [`JBJamesBrownJB/system-register`](https://github.com/JBJamesBrownJB/system-register) — a UK
