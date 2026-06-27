@@ -70,6 +70,26 @@ direct warning against assuming it. That split is the whole story:
 → **Net:** the residual problem clair must own is specifically the **semantic/logical conflict
 and duplication layer** — exactly where evidence is strong *and* where isolation+git can't help.
 
+### Reading the CooperBench caution precisely — it aims *at* clair's lever
+
+The headline "communication didn't help" is real but **narrower than it sounds**, and the detail
+is favourable. CooperBench's "communication" was **unstructured free-text messages between
+agents that were BLIND to each other** (isolated containers, no visibility into each other's
+workspaces/diffs/files). Its residual failures were **work-overlap/duplication (33.2%)** and
+**divergent architecture (29.7%)**, and ~42% of root causes were **"Expectation"** — failure to
+*model what the partner is doing*. The authors' prescribed fix is to *"turn conversation into
+verifiable shared state — pasted signatures, insertion-point contracts, integration checks."*
+
+That is **the gap clair is built for**, on two axes their setup lacked: **visibility** (ambient
+partner-state via presence + `about`) and **structure** (a typed `about` key + context-swap of
+concrete signatures, not prose). The two residual failures map onto clair's cheapest wins —
+duplication → the presence/beacon ("someone's already here"); divergent architecture →
+decision-emit + context-swap. So CooperBench indicts *unstructured chat between blind agents*,
+**not awareness** — but the warning stands: clair must still **prove** structured visibility
+beats the disciplined baseline on **task success**, not conflict count. *(Mechanism details
+verified against arXiv:2601.13295v1, §2.1/§3/§6.2; the often-cited "~14.6pp" conflict-reduction
+figure is figure-derived and unverified — cite only the direction.)*
+
 ## The metrics that prove it — the benchmark instrument list
 
 This is the foundation for the [value benchmark](../architecture/value-benchmark.md). Each has a

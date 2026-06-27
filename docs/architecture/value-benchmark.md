@@ -48,6 +48,15 @@ bookmark, soft-delete, audit-log, CSV export, rate-limit, search filter.
   **slice agent is free to spawn its own sub-agents**, plan a strategy, and implement **with
   tests** (normal agent behaviour).
 
+> **Steal CooperBench's feature-construction method** (arXiv:2601.13295). Build each slice as an
+> **anchor feature** (derived from a *real* PR in the forked app) **+ synthetic adjacent
+> features** authored to *"plausibly co-occur and create natural overlap without adversarial
+> specifications"* — natural collision, not booby-traps. Then **validate every feature
+> combination is independently-implementable-but-conflicting** (each passes its own tests solo;
+> pairs contend on shared code). Run with **information asymmetry**: each slice agent sees only
+> *its own* feature spec, never the others' — the realistic condition that produces duplication
+> and divergent-architecture failures.
+
 ## The arms — the heart of it
 
 The same workload run under different conditions; clair's value is the **delta**.
@@ -89,7 +98,10 @@ The full instrument list — with real-world baselines and methods — is the me
   post-merge defect rate; intervention rate.
 
 **Supporting — LLM-judged** (adversarial-verification caution)
-- Rework, contradictory decisions, "built as intended" rubric over diffs.
+- Rework, contradictory decisions, "built as intended" rubric over diffs. Use CooperBench's
+  **failure taxonomy as the label set**: work-overlap/duplication, divergent-architecture,
+  repetition, unresponsiveness, broken-commitment — so judged results are categorized, not
+  freeform.
 
 > **Design to FALSIFY, not confirm.** The sharpest finding: CooperBench showed inter-agent
 > communication cut merge conflicts but **did not raise task success**. So **success = end-to-end
