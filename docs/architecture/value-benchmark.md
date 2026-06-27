@@ -76,6 +76,33 @@ The same workload run under different conditions; clair's value is the **delta**
 proximity beacon* → *+ context-swap* — to attribute **which capability earns the value** (and
 catch the case where the cheap beacon already captures most of it).
 
+## Integration: build → fixed-merge → gate (and what we measure where)
+
+The procedure, and the one rule that keeps it attributable:
+
+1. **Build** — each agent builds its slice blind, in its own worktree (measure build tokens/time).
+2. **Integrate** — the harness merges the branches. **This step is held FIXED and identical across
+   arms.** *Why:* clair acts at **build time** (ambient awareness while coding), **not** as a
+   merge resolver — so its value is that Arm B's agents produce outputs that *collide less*. If
+   agents resolved conflicts with clair on, you'd conflate "helped avoid" with "helped resolve"
+   and lose attribution. So whatever integrates is the same mechanism, clair-off, every arm. (The
+   v2 rendezvous/deconfliction protocol is *also* build-time, so it too shows up as cleaner
+   merges — integration still stays fixed.)
+3. **Gate + score** — run the hidden suite on the integrated result.
+
+Two instrumentation points, one run:
+- **At first merge** — textual conflicts (count/size) + the hidden gate on the merged result →
+  semantic conflicts, regressions, unprotected endpoints. *The raw collision measurement.*
+- **Through to a working whole** — completion (reached all-pass?) + cost-to-completion.
+
+**Sequencing — start simple:**
+- **First experiment (baseline / problem-in-vivo):** build → **mechanical** merge → gate, **no
+  resolver**. A non-auto-merge or gate failure = *did-not-complete*. Cheapest way to measure
+  whether the problem exists in our arena; if isolated agents already merge clean and pass, stop.
+- **Richer experiment (later):** add a **fixed resolver** (standard integration agent,
+  budget-capped, clair-off) to drive toward all-pass → adds *cost-to-resolution* and a softer
+  completion rate.
+
 ## Outcome is a fixed gate, not a fuzzy grade — the hidden acceptance suite
 
 The backbone that separates *"does it work"* from *"how efficiently."* The harness owns a
