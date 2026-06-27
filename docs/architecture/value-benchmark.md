@@ -76,6 +76,38 @@ The same workload run under different conditions; clair's value is the **delta**
 proximity beacon* → *+ context-swap* — to attribute **which capability earns the value** (and
 catch the case where the cheap beacon already captures most of it).
 
+## Outcome is a fixed gate, not a fuzzy grade — the hidden acceptance suite
+
+The backbone that separates *"does it work"* from *"how efficiently."* The harness owns a
+**hidden, held-out acceptance suite** — a solid, comprehensive pass/fail definition of **"all 5
+features work and nothing regressed"** — that the slice agents **never see** (visible tests get
+gamed). Agents write their own tests as part of their process; the hidden suite is the
+**ground-truth arbiter**, run by the harness after integration. Every run then factors cleanly:
+
+- **Completion (outcome axis).** Did the arm reach the all-pass gate? Report **per-feature pass +
+  the all-pass rate** (not pure binary — keep per-feature signal). This is the success-rate / RCC
+  numerator.
+- **Cost-to-completion (efficiency axis, isolated).** Among runs that reached the gate, tokens /
+  wall-clock / rework / merge cycles spent. Outcome held constant → the journey is the measurement.
+
+clair's value shows as **either a higher all-pass rate or a lower cost-to-all-pass** (ideally
+both) vs the disciplined baseline.
+
+Why it's the right backbone:
+- **Stabilizes the dependent variable** — outcome is objective ground truth, not LLM judging,
+  cutting the stochastic-agent variance head-on.
+- **It _is_ the semantic-conflict + silent-deletion instrument** — to make "all-pass" mean "truly
+  works," the hidden suite must include **cross-feature integration + behavioral-regression**
+  tests, i.e. the cumulative behavioral suite the proof-of-problem named as the headline. One
+  mechanism, both jobs.
+- **Falsification-proof in the right way** — clair cannot win by gaming conflict counts, only by
+  raising all-pass rate or lowering cost-to-all-pass (closes the CooperBench trap).
+
+Pair it with a **budget cap** (max tokens/time per run) so cost-to-completion is bounded; a run
+that doesn't reach the gate by the cap is counted as **did-not-complete** (a failure, not
+dropped). **Hidden ≠ the agents' own tests** — keep the arbiter strictly held out, or it stops
+measuring real quality.
+
 ## Metrics (dependent variables)
 
 The full instrument list — with real-world baselines and methods — is the metrics table in
