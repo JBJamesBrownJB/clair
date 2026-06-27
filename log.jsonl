@@ -249,3 +249,4 @@
 {"id":"019f0990-ac74-7e03-8177-15a4ee9fb6d1","author":"JB","kind":"summary","text":"Push first, then scope the build into work items — or keep refining the design?","ts":"2026-06-27T14:51:44Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
 {"id":"019f0994-6d73-7813-bf50-94fbba4133a8","author":"JB","kind":"prompt","text":"ok fine, commit, push","ts":"2026-06-27T14:55:49Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
 {"id":"019f0994-b9c3-7680-a35f-b3537f493673","author":"JB","kind":"summary","text":"Clean tree, 8 commits ahead. Pushing.","ts":"2026-06-27T14:56:09Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
+{"id":"019f0996-a971-77e2-9fa5-9d3b334900ed","author":"JB","kind":"prompt","text":"yes, add the explainers for dumb pricks like me please","ts":"2026-06-27T14:58:16Z","turn":"6d0b7e22-7f6c-41cb-8fe1-1d1a12dc17f6"}
