@@ -10,7 +10,7 @@
 
 | # | Feature | Grain | Status | One-liner |
 |---|---------|-------|--------|-----------|
-| 1 | Zero-config enrollment | — | target | One command and you're in the ambient layer, forever. |
+| 1 | Zero-config enrollment | — | target | Installing the plugin enrolls you — no setup command; `clair:alias` optional. |
 | 2 | Proximity statusline | L0 → L1 trigger | target | clair's own line in Claude Code: ambient presence that escalates as relevance closes in. |
 | 3 | Relevance escalation | L0→L1 | idea | The right blip rises out of the noise and surfaces to you. |
 | 4 | The five clair kinds | L0/L1 | idea | What can surface: presence, collisions, decisions, incidents, findings. |
@@ -25,16 +25,51 @@
 
 ## 1. Zero-config enrollment
 
-Run one command and you're enrolled in the repo's ambient layer. No channels to join,
-no config to tend, nothing to run.
+**Installing the plugin *is* the enrollment.** There is no `init`, no setup command,
+nothing to run — the plugin ships the statusline, the hooks, and the MCP server, and the
+first time any of them runs clair **self-initializes**: it derives your alias from
+`git config user.name`, mints a session **instance** id, and starts syncing `refs/clair/*`
+in the background. It never mutates your git config (it fetches/pushes those refs with
+explicit refspecs), so there is nothing to undo.
+
+From that point it's **hands-off**: clair fetches and emits over the git remote you already
+have. "Hands-off" means *zero-config*, not autonomous — you stay the gate for what reaches
+your agent (see product.md, *Human-first*).
+
+**Two optional niceties — the only commands you ever need:**
 
 ```
-clair
+clair:alias rajiv     # set your principal so peers see "rajiv", not "james-laptop"
+clair:pause           # stop broadcasting for a bit; clair:resume turns it back on
 ```
 
-From that point it's **hands-off**: clair fetches and emits in the background over the
-git remote you already have. "Hands-off" means *zero-config*, not autonomous — you stay
-the gate for what reaches your agent (see product.md, *Human-first*).
+`clair:alias` persists to `git config clair.alias` (with no argument it prints your current
+alias and where it resolved from). Neither command is required — they exist so identity and
+presence are *yours to adjust*, not *yours to configure*.
+
+**Consent & visibility.** Because install = enrollment, the first run **also broadcasts**:
+your blips (presence, branch, paths, emitted bodies) become visible to **anyone who can
+`fetch` your remote** — the same audience as your branches, but finer-grained and
+pre-commit; on a public origin, that's the world. To keep the trade honest without breaking
+zero-config:
+
+- A **one-time, non-blocking** first-run line states plainly *who can see your activity* and
+  points to `clair:pause` / local-only. (Not a blocking gate — instant-wow is preserved; the
+  cost is that you *are* visible until you opt out.)
+- **Local-only is a first-class mode**: `clair --local` (or `clair:pause` left on) **reads
+  peers but never emits** — full inbound awareness, zero outbound. Use it when sensitivity
+  matters; see product.md, *Consent & visibility*.
+- The *"what clair shares about me"* view lives in `/clair:status` (the **YOU** section).
+
+**`clair:pause` / `clair:resume`, precisely.** Pause stops **all outbound** (presence refresh
++ emitted clairs) while fetch/read **continues** — you still receive, and resume is instant.
+It does not retract already-pushed blips, but presence **self-evicts on its ~5-min TTL**, so
+going quiet is bounded even without explicit retraction. (Clean-exit removal and a `withdraw`
+that deletes your refs are transport-spec concerns.)
+
+> The bare `clair` CLI still exists, but as the **standalone entrypoint** for non-plugin
+> harnesses (the *harness-agnostic ambition*), not as an enrollment step. Inside Claude
+> Code you never type it.
 
 ---
 
@@ -47,10 +82,16 @@ counter — it is a **proximity radar**. At rest it shows ambient presence (**Ti
 **trigger** that fires the full L1 surfacing elsewhere.
 
 ```
-◈ clair · 3 active                          (grey  — resting, pure L0 ambient)
-◈ clair · rajiv ✎ auth.rs  ‹your file›      (amber — warming, spatial proximity)
-⚠ clair · merge-risk · rajiv auth.rs:40     (red   — hot; this IS the L1 trigger)
+◈ clair · 3 people                          (grey  — resting, pure L0 ambient)
+◈ clair · rajiv ✎ auth.rs  ‹your file›      (amber — a standing overlap with your work)
+⚠ clair · merge-risk · rajiv auth.rs:40     (red   — just crossed/worsened; the L1 trigger)
 ```
+
+The bare line leads with **people** (not session count, which overstates a fleet of agents);
+session/agent counts live on `/clair:status`. **Color is transition-aware**: a *standing*
+overlap sits at **amber**; **red is reserved for a hit that just appeared or worsened** —
+otherwise a red that means "still true" becomes wallpaper within a day (see stats-digest.md,
+the render ladder).
 
 **"Proximity" unifies both escalation triggers.** *Spatial* proximity — you're editing
 in/near a file or hunk a peer is active in (cheap, local, deterministic) — and *semantic*
@@ -60,7 +101,17 @@ surface serves the cheap triggers now and the hard one later without changing sh
 
 **The statusline spans L0 up to the L1 _trigger_, but not the L1 _body_.** A status row
 is too small for a diff or a conclusion. It is the dial and the alarm; crossing the
-threshold fires a roomier surface (banner / notification) that carries the actual detail.
+threshold is what surfaces the detail.
+
+> **Open: how the L1 _body_ reaches you.** A statusLine command can only print a line — it
+> has **no API to raise a banner or notification**. So the auto-escalating red trigger is real
+> push, but the *delivery channel for the body* is **not yet validated against Claude Code's
+> docs** — candidates: a hook injecting `systemMessage`/`additionalContext` on the next
+> session event, or the statusline process emitting an OS notification, to be confirmed
+> exactly as the statusline itself was. Until then, the honest fallback is: **the red line
+> surfaces automatically; you pull the detail** via `/clair:status` or a query. "Push is the
+> magic" still holds — the *unprompted trigger* is the magic; only the final fetch may be a
+> pull.
 
 **Discipline — the radar must stay quiet.** Same failure mode as "a banner that's always
 on is a banner nobody reads," applied to color: the line is grey and minimal almost
@@ -112,6 +163,15 @@ what you're doing) — is the **open problem product.md names**, and the thing c
 or dies on. This feature is the reason the project exists; it is deliberately `idea` until
 the engine is designed.
 
+**Two audiences, two interruption budgets.** The lesson from the prior-art lineage is that
+*humans* switch off tools that nag — so the **human surface (the statusline) stays calm**,
+amber-by-default, red only on change. But in an agent-majority repo the more important
+consumer is the **agent**, and an agent's interruption cost is ≈zero: nobody minds their
+*agent* being interrupted if it produces a better result. So the **agent-facing leg can
+escalate far more aggressively** than the human one — a quadrant the human-only lineage never
+had. Same relevance engine, two different thresholds. (See product.md, *Human-first* and the
+agent-centric thesis.)
+
 ---
 
 ## 4. The five clair kinds — what can surface
@@ -128,6 +188,13 @@ A "clair" is one live event. Five kinds, cheapest/most-automatic first:
 The first two are cheap and local; the last three are **highlights** that rely on the
 sender's AI classifying intent (feature 5).
 
+> **Collision is _computed_, not stored.** Of the five, only four are stored clairs
+> (presence + the three highlights). A collision is a pure function of two instances'
+> presence + their pushed diffs, so the consumer **derives** it locally as a `near_you` view
+> rather than anyone writing/syncing a "collision" object — which also kills a peer-to-peer
+> writer-election race. Self-collision (two of *your own* agents diverging) is the same
+> computation (see data-model.md, *Two lifecycles*).
+
 ---
 
 ## 5. Emitting a clair (outbound)
@@ -139,6 +206,16 @@ distils what you just did into a headline + *about* key and emits it; it is
 This rides the **two-pipe loop-safety** rule: receiving a clair never emits one, and
 outbound only fires on your own turn — so two AIs can't ping-pong. Emission writes to the
 orphan shadow ref (see product.md, *How it rides on git*); never to your working history.
+
+**Emit safety — distillation is not redaction.** What you emit is visible to **anyone who
+can fetch the remote** (emit exposure == remote read ACL). Classifying intent does *not* make
+content safe: an API key in a prompt, a diff touching `.env`, a pre-disclosure vuln in a
+`finding`, or PII in a stack trace would all leak. So two constraints: (1) emit must **never
+publish content the author hasn't committed**; (2) bodies are **structured summaries of
+intent**, not raw prompt/diff verbatim by default. Secret/PII scrubbing of
+`headline`+`about`+`body` is a **named requirement** for the emit/transport spec; whether
+high-sensitivity kinds (`incident`/`finding`) should be opt-in is an open question
+(data-model.md).
 
 ---
 
@@ -171,8 +248,14 @@ layer — the agent-facing angle the landscape research flagged as a differentia
 
 **Bounds to keep honest:**
 
-- **Loop-safe by construction.** A query is inbound/read-only; asking "what's rajiv doing"
-  must never emit a clair (the two-pipe rule, same as escalation).
+- **Loop-safe ≠ content-trusted — two separate guarantees.** *Loop-safe* means a query
+  **writes nothing** (inbound/read-only; never emits — the two-pipe rule), so the agent may
+  call it mid-task. *Content-trust* is the other axis: results are **untrusted peer data**.
+  Because `principal` is self-asserted and any push-capable peer can forge a blip, an inbound
+  body could be hostile free text — textbook indirect prompt injection. **The invariant:
+  inbound headlines/bodies enter agent context as quoted, attributed _data_, never as
+  instructions; an agent-initiated pull may READ, never ACT.** Acting on what a peer shared
+  stays a human-gated decision (see data-model.md, *Trust model*).
 - **A pull is a fetch.** Answering reads the latest shadow-ref state, so a query triggers a
   background fetch first; freshness is bounded by what peers have pushed.
 - **Scope = what was emitted.** A query returns peers' *shared* activity (their blips,

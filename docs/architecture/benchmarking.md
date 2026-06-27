@@ -22,38 +22,72 @@ against repeatable scenarios** and fail the build when a number regresses. The h
 how "stay in the low-interruption, low-cost quadrant" (the landscape lesson) becomes a
 test, not an aspiration.
 
+> **Cost and recall are not value.** This harness measures whether clair is *cheap* and
+> whether it *surfaces the right blip* — it **cannot** measure whether surfacing it improved
+> an outcome. A green gate means "fast and correct," **never** "the thesis is proven." Value
+> (did a surfaced clair change an agent's action vs clean worktree isolation?) is settled by
+> dogfooding against the kill-criterion in [../product.md](../product.md), *The bet* — not
+> here. Keep the two from being confused: a passing benchmark is necessary, not sufficient.
+
 ## What we measure
 
 Two families, each per surface.
 
 ### Latency
 
-| Surface | Metric | Target (first pass, to tune) |
-|---------|--------|------------------------------|
-| Statusline render | read `digest.json` → printed line | **< 10 ms** (≪ 1 s tick) |
-| Reduce step | fetch → filter → fold → atomic write | **< 250 ms** at 20 peers |
-| `/clair:status` | refresh + full render | **< 500 ms** |
-| Feature 6 query | fetch + filter snapshot + answer | **< 1 s** (excl. model time) |
-| **End-to-end awareness** | peer emits → it appears in my digest | **< fetch period + 1 reduce** |
+| Surface | Metric | Target (first pass, to tune) | Gated? |
+|---------|--------|------------------------------|--------|
+| Statusline render (clair's part) | read `digest.json` → printed line, **in-process** | **< 1 ms** | ✅ gated |
+| Statusline **spawn** (host's part) | OS process create + runtime init per tick | informational only | ⚠️ smoke, not gated |
+| Reduce **fold** (transport-independent) | filter → fold → atomic write | **< 200 ms** at 20 instances | ✅ gated |
+| Reduce **fetch** term | pull shadow refs | **mocked** (fixed delay) | ❌ not gated |
+| `/clair:status` | refresh + full render | **< 500 ms** | ✅ gated |
+| Feature 6 query | filter snapshot + answer | **< 1 s** (excl. model + fetch) | ✅ gated |
+| **End-to-end awareness** | peer emits → appears in my digest | < fetch period + 1 reduce | 📊 tracked, not gated (transport mocked) |
 
 Report **p50 / p95 / p99**, not means — the tail is what gets a tool switched off.
 
+**Why the splits.** The harness materializes synthetic refs in a local store with no real
+network, so it can only honestly gate the **transport-independent** work (the fold) and must
+**label the fetch/transport term as mocked** — otherwise a green gate would certify "500
+instances fine" while never exercising the very thing that melts at scale. And the statusline
+budget splits clair's **in-process render** (sub-ms, gated) from the **host's per-tick spawn
+cost** (tens of ms, worst on Windows / unsigned binaries) which clair doesn't control — see
+[stats-digest.md](stats-digest.md). The spawn cost gets one machine-tagged wall-clock smoke
+check **outside** the deterministic gate; the shipped reader must be cheap-to-spawn and
+code-signed.
+
+**Transport-tier metrics (wired when transport exists, gated then).** First-class, tracked
+like token count: **refs-advertised-per-fetch**, **remote-bytes-per-reduce**, **packed-refs
+rewrite time under presence-TTL churn**, and **the developer's *own* git latency**
+(`status`/`commit`/`checkout` p95/p99) while clair refreshes presence at 20/100 instances —
+clair's footprint on the host repo. A separate **remote-load-vs-peers** sweep against a real
+hosted remote is the lab that **tunes the configurable sync cadence** (the riskiest
+assumption; run once, outside the deterministic gate).
+
 ### Token usage
 
-The statusline and reduce paths must be **0 tokens** — the benchmark asserts this as a hard
-floor, catching any accidental model call on the ambient path. Tokens are spent only on the
-deliberate paths, and there we track cost per operation:
+The statusline and reduce paths must be **0 tokens**. But a runtime token meter asserting
+"0" is nearly a tautology — those paths contain no model client, so a one-line lint catches
+it better. So the ambient-free guarantee is **primarily a static reachability lint** (no
+model/Anthropic symbol is reachable from the statusline or reduce crates), with the runtime
+0-token meter kept only as a **backstop** for dynamic-dispatch / subprocess calls the lint
+can't see. Real token cost lives on the deliberate paths:
 
 | Path | Tokens counted | Budget posture |
 |------|----------------|----------------|
-| Statusline render | must be **0** | hard assert; any non-zero is a failure |
-| Reduce / digest build | must be **0** | hard assert |
-| Emit a clair (feature 5) | classify intent + distil headline/about | minimize; this fires per shared event |
-| Feature 6 query | NL question → store filter → answer | minimize; per deliberate ask |
+| Statusline render | must be **0** | static lint (reachability) + runtime backstop |
+| Reduce / digest build | must be **0** | static lint + runtime backstop |
+| Emit a clair (feature 5) | **input** (real tokenizer) + **output** | input gated per-PR; output nightly |
+| Feature 6 query | **input** (real tokenizer) + **output** | input gated per-PR; output nightly |
 | Relevance engine (future semantic) | whatever scoring costs | the seam most at risk; watch closely |
 
-Token counts come from the harness driving the real emit/query code paths and summing model
-usage (input + output) reported by the harness, attributed per scenario.
+**Input vs output, because of determinism.** A real model call is non-deterministic (output
+tokens vary run to run), so gating it per-PR would flap. But the **input** prompt is
+deterministic — count it with the real tokenizer and gate it per-PR, which is exactly what
+catches a prompt that doubles emit cost. **Output** tokens come from a real model run
+**nightly**, not the per-PR gate. (This replaces the earlier "fails on any token increase"
+claim, which a stubbed fixed-usage meter could never honestly back.)
 
 ## The scenario model
 
@@ -68,10 +102,10 @@ description = "20 peers active, 5 converging on auth, one true collision with me
 seed        = 42                      # deterministic — no wall-clock, no RNG drift
 
 [repo]
-peers       = 20
+instances   = 20                      # sessions, not humans — the count unit
 branches    = 8
-blip_rate   = "1/30s"                 # emitted clairs per peer
-ttl_profile = "default"              # presence 5m, collision 15m, events 4h
+blip_rate   = "1/30s"                 # emitted clairs per instance
+ttl_profile = "default"              # presence 5m, events 4h (collision is computed, no TTL)
 
 [[actor]]                            # the collision we expect to detect
 alias = "rajiv"; branch = "feature/auth"; touches = ["src/auth.rs:30-58"]
@@ -88,16 +122,27 @@ statusline_tokens = 0
 
 The `[expect]` block makes every scenario double as a **correctness fixture**: the harness
 asserts the digest came out right *and* records what it cost to get there. A scenario that
-stops surfacing the collision fails just as loudly as one that gets slow.
+stops surfacing a real collision fails just as loudly as one that gets slow — **and so does a
+scenario that surfaces a _spurious_ one.** A false amber/red is a **hard failure on equal
+footing with a missed hot**, because the lineage died of noise, not of missed events
+(landscape.md). Recall without precision is not a passing grade.
 
 ### Scenario families to cover
 
-- **Scale ladder** — 1, 2, 5, 20, 100, 500 active peers. Watch reduce latency and digest
-  size grow; find where compaction must kick in.
+- **Scale ladder** — 1, 2, 5, 20, 100, 500 active instances. Watch **fold** latency and
+  digest size grow. (The transport term is mocked here, so the ladder certifies the fold, not
+  the network — see the latency splits above.)
 - **Proximity cases** — no overlap / same-folder / same-file / same-hunk, to exercise each
   radar rung and `near_you` scoring.
-- **Churn** — high blip rate vs idle, to test TTL pruning and latest-wins presence.
-- **Emit & query** — drive feature 5 and feature 6 to attribute token cost per operation.
+- **Precision / negatives** — edits that must **not** surface: refactors in unrelated files,
+  exploratory churn, a peer who touches-and-reverts. `[expect]` asserts `proximity = "calm"`
+  and `near_you_contains = []`. This family guards the existential false-positive rate.
+- **Churn** — high blip rate vs idle, to test TTL pruning and latest-wins presence; includes
+  the **developer's-own-git-latency** check while presence refreshes.
+- **Garbage input** — malformed JSON / missing required L0 fields / oversized body: assert
+  the digest still builds and latency holds (the fold skips and continues).
+- **Emit & query** — drive feature 5 and feature 6 to attribute input-token cost per
+  operation.
 - **Cold vs warm** — first fetch vs steady state, to separate setup from hot-path cost.
 
 ## How the harness runs
@@ -143,9 +188,10 @@ Each run appends to a tracked baseline (`benchmarks/baseline.json`), so we can a
 that change make the statusline slower or the emit path pricier?" with a number.
 
 - **Baseline.** Committed p50/p95/p99 latencies and token costs per scenario.
-- **Gate.** CI runs the suite and **fails on regression past a tolerance** (e.g. p95 latency
-  +15%, or *any* token increase on a path asserted to be 0/minimal). Hard floors (statusline
-  = 0 tokens, render < tick) are non-negotiable asserts.
+- **Gate.** CI runs the suite and **fails on regression past a tolerance** (e.g. p95 fold
+  latency +15%, or an **input-token** increase on emit/query). Hard floors — the ambient-free
+  lint (no model reachable from statusline/reduce), clair's in-process render < tick, and a
+  spurious escalation — are non-negotiable. Mocked-transport terms are tracked, not gated.
 - **Trend.** Results are timestamped and seed-stamped so a chart of cost-over-commits is
   trivially derivable — tuning becomes visible, not anecdotal.
 
@@ -168,14 +214,14 @@ clair's own code follows — measurements must be reproducible.)
 1. **Synthetic vs replay** — author scenarios by hand (clear, but artificial), or also
    capture/replay real multi-agent sessions (realistic, but noisier and harder to make
    deterministic)? Likely both: hand-authored for the gate, replay for discovery.
-2. **Token metering source** — for emit/query, count tokens from a real model call (true
-   cost, but slow/non-deterministic CI) or from a recorded/stubbed model with fixed usage
-   (deterministic, but a proxy)? Probably stubbed in the gate, real in a nightly.
-3. **Where the gate runs** — every PR (catches regressions early, costs CI minutes) vs
-   nightly (cheaper, slower feedback). Likely fast latency asserts per-PR, full token suite
-   nightly.
-4. **End-to-end timing** — the awareness-latency metric spans a fetch period; do we benchmark
-   it against a real loopback git remote, or model the transport as a fixed delay until the
-   transport spec exists?
+2. **Token metering source** — *resolved:* gate **deterministic input** tokens per-PR (real
+   tokenizer over the real prompt) and run **output** tokens against a real model **nightly**.
+   No fixed-usage stub pretending to be a gate.
+3. **Where the gate runs** — *resolved direction:* fast latency + input-token asserts per-PR;
+   full output-token suite + real-remote sweeps nightly.
+4. **End-to-end / transport timing** — *resolved for now:* model the transport as a **fixed
+   delay**; the real loopback/container remote is **deferred until the transport spec lands**
+   — do **not** build the container harness yet. The one exception is the run-once
+   remote-load-vs-peers sweep that tunes cadence, explicitly outside the deterministic gate.
 5. **Crate boundary** — `clair-bench` as a dev-only crate vs an optional workspace member;
    how to keep its deps out of the shipping binary entirely.

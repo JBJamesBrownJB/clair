@@ -69,7 +69,12 @@ mostly when participants are *distributed*.
   **Interruption / Reaction / Comprehension**; the **"Ambient Media" class** (low-interrupt,
   low-reaction, high-comprehension) precisely describes clair's L0 line.  **[V]** This is the
   rigorous backbone for "stay quiet, escalate only when relevant" — and a concrete design
-  target: clair must live in that quadrant.
+  target: clair must live in that quadrant **for the human surface**.
+  → **clair's twist:** that low-interruption constraint is a *human* constraint. In an
+  agent-majority repo the more important consumer is the **agent**, whose interruption cost is
+  ≈zero — so the agent-facing leg can escalate far more aggressively than this framework
+  permits for people. Same engine, two interruption budgets; a quadrant the human-only lineage
+  never had.
 - **Gutwin & Greenberg workspace awareness** (2002): the *Who / What / Where* framework maps
   onto clair's spatial ("where / what artifact") vs semantic ("intention / action") axes.  **[T]**
 - **Nielsen progressive disclosure** (NN/g): defer secondary options; show the cheap headline
@@ -152,10 +157,13 @@ and **agent-facing**, not just a human GUI.
   · for **solo AI agents** · in the statusline. No single tool occupies that intersection.
 - **Three lessons to carry into the design:**
   1. **Gate escalation on committed intent**, not keystrokes (Crystal).
-  2. **Stay in the "Ambient Media" low-interruption quadrant** (McCrickard) or it gets
-     switched off.
+  2. **Stay in the "Ambient Media" low-interruption quadrant** (McCrickard) **for the human
+     surface** — but exploit that *agents* tolerate aggressive interruption, a budget the
+     human-only lineage never had.
   3. **Isolation-vs-awareness is the thesis to prove** — awareness must beat clean worktree
-     isolation, and it pays most for the distributed / solo condition that is clair's premise.
+     isolation, measured on **agent outcomes** (does a surfaced clair change an action?), not
+     just recall or cost. It pays most for the distributed / multi-agent condition that is
+     clair's premise.
 
 ---
 

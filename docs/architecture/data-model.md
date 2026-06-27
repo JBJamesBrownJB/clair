@@ -22,21 +22,99 @@ an expensive body**:
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `id` | string (UUIDv7) | Unique, **time-ordered** (orders cleanly, drives cursors). |
-| `kind` | enum | `presence` · `collision` · `decision` · `incident` · `finding`. |
-| `class` | enum | `derived` or `emitted` — implied by `kind`, stated for lifecycle (below). |
-| `actor` | alias | Who. (`collision` carries `actors: [alias, alias]`.) |
-| `branch` | string | The actor's branch — an **attribute**, not a scope. |
+| `v` | int | **Schema major**; absent ⇒ `1`. Readers ignore unknown kinds/fields (see *Forward compatibility*). |
+| `id` | string (UUIDv7) | Unique, time-**sortable** for display/scan order only — **not** a cross-machine total order (clocks aren't assumed synced; the unseen set is a set-difference, not a timestamp compare — see [stats-digest.md](stats-digest.md)). |
+| `kind` | enum | `presence` · `decision` · `incident` · `finding`. (`collision` is **derived on the consumer**, never a stored field — see *Two lifecycles*.) |
+| `principal` | alias | **Who** — the human/owner. Derived from `git config user.name`; override with `clair:alias`. Self-asserted, not authenticated (see *Trust model*). |
+| `instance` | id | **Which session** — one running agent/session. The presence key. `branch` and worktree are attributes. |
+| `branch` | string | The instance's current branch — an **attribute**, not a scope. |
 | `headline` | string | The short human line the radar shows ("rajiv refactoring auth"). |
 | `about` | object | The **match key** — `{ paths[], symbols[], tags[] }` (see below). |
 | `ts` | RFC3339 | When emitted/computed. |
-| `ttl` | duration | Lifetime; **expiry = `ts` + `ttl`**. The ephemerality teeth. |
+| `ttl` | duration | Lifetime; **expiry = `ts` + `ttl`**. Best-effort ephemerality (readers treat expired as gone; the bytes persist on the remote until a client prunes — see *Two lifecycles*). |
 
 ### Body (L1) — fetched on demand
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `body` | object \| string | The detail behind the headline: a conclusion, a prompt, a diff region, a finding. Empty for bare presence. Referenced, not carried in L0. |
+| `body` | object \| string | The detail behind the headline: a conclusion, a structured summary, a diff region, a finding. Empty for bare presence. Tiny bodies carried inline; large ones may be referenced (see Open Questions). |
+
+### Forward compatibility — the wire is uncoordinated
+
+clair is a **serverless peer-to-peer bus**: every peer runs whatever version it installed,
+and nothing coordinates upgrades. So two reader rules are **permanent invariants**, not
+optional politeness:
+
+- A reader **MUST ignore any clair whose `kind` it does not recognize.**
+- A reader **MUST ignore unknown frontmatter fields.**
+
+Unknown is always *dropped*, never an error. The `v` field reserves a schema-major for the
+day a breaking change is unavoidable; the additive/removal bump rules and the reducer's
+test contract are deferred to the architecture spec.
+
+### Trust model — identity is self-asserted
+
+clair inherits the **remote's** authentication: **push access == write access.** `principal`
+and `instance` are self-asserted labels (derived from local git config), **not
+cryptographically bound** — anyone who can push can author a clair under any name. The hard
+invariant that makes this safe:
+
+> **Inbound headlines and bodies are untrusted _data_, never instructions.** They enter an
+> agent's context only as quoted, attributed data; any action derived from them stays
+> **human-gated**. An agent-initiated pull (feature 6) may **READ**, never **ACT**.
+
+This is the defense against a forged `incident`/`finding` becoming indirect prompt injection
+into a teammate's agent. Cryptographic binding of `principal` is noted as future hardening
+(see Open Questions), not a v1 mechanism.
+
+## Identity — principal and instance
+
+A single alias can't represent the real world: one human can drive several agent sessions
+at once, and *those sessions can collide with each other*. So identity is **two levels**:
+
+| Level | Is | Set by | Stable across | Example |
+|-------|----|--------|--------------|---------|
+| **principal** | the human / owner | derived from `git config user.name`; override with `clair:alias` | all your sessions | `rajiv`, `jb` |
+| **instance** | one running session | minted automatically at first activity | that session's life | `jb.a3f` |
+
+- **The instance is the key for `presence`** (and for the derived `collision` view). One
+  **instance = one harness session**; three agent sessions = three instances = three
+  distinct live blips, never collapsed. `branch` and worktree path are **attributes** of an
+  instance, not its identity (a session that switches branch keeps its id).
+- **Queries and attribution roll up to the principal.** *"What is rajiv doing?"* aggregates
+  all of rajiv's instances → **"rajiv has 6 agents active: 3 in `auth`, 2 in `api`, 1 in
+  `ui`…"**, then drills into any one. The principal is the social unit; the instance is the
+  mechanical unit.
+- **Naming is `principal.shortid`** (`jb.a3f`) — a short opaque suffix, *not* the branch.
+  Display bare `rajiv` when he has one instance; disambiguate to `rajiv.a3f` (or annotate
+  with the branch) only when several are live.
+- **Self-collision is first-class.** Two of *your own* instances diverging in the same hunk
+  is a real merge-risk and surfaces exactly like a collision with a peer — the collision
+  detector never special-cases "it's only me."
+
+### Where identity state lives (and worktrees)
+
+Git worktrees share one object store and one ref namespace but each has its own working dir,
+HEAD, and index. clair follows that exact seam:
+
+- **Shared per repo** — the shadow refs (`refs/clair/*`) live in the **common** git dir, so
+  *every worktree sees every instance's blips locally, with no fetch*. Your co-located
+  worktrees get sub-second cross-awareness (and self-collision detection) for free; only
+  *remote* peers need a network fetch.
+- **Per-worktree** — the read `cursor` and `work.json` live in the **per-worktree** git dir
+  (`$(git rev-parse --git-dir)/clair/`), since "what I've seen" and "what I'm editing" follow
+  the checkout. (Full storage layout in
+  [stats-digest.md](stats-digest.md#storage--under-git-never-in-the-working-tree).)
+
+A separate worktree is the **common case** of a distinct instance, but the count unit is the
+**session**, not the worktree: `instance` is keyed by the harness session id (on stdin), so
+two sessions in one checkout stay two instances and presence doesn't undercount.
+
+> **Open seam (not solved here).** `cursor` and `work.json` are per-worktree, so two sessions
+> sharing one working tree and HEAD make per-session "what I've seen / what I'm editing"
+> non-trivial to attribute. v1 keys the instance per session; splitting the per-session view
+> state when sessions share a checkout is an open implementation question for the transport
+> spec.
 
 ## The `about` key — structured facets
 
@@ -48,6 +126,15 @@ an expensive body**:
 | `paths` | `["src/auth.rs", "src/auth/"]` | **Where** — the files and folders involved. |
 | `symbols` | `["AuthMiddleware", "auth::check"]` | **What** — the function/type/class names involved. |
 | `tags` | `["auth", "refactor"]` | **Topic** — a few short labels. |
+
+> **v1 scope — paths carry the weight.** Only `paths` is required: it's free from the edit
+> hook's file argument and `git diff --name-only`, no parsing. `symbols` and `tags` are
+> **optional/best-effort** — populated only when cheaply available (an LSP that's already
+> running; tags from path heuristics or a small vocab) and empty otherwise. **No facet beyond
+> `paths` may gate emitting a clair or run on the hot path.** And in v1 **`tags` do not
+> contribute to the relevance score** (free text never reliably intersects — `auth` vs
+> `authn`); they are display/faceting only. Matching degrades gracefully to paths alone;
+> symbols and semantic matching are upgrades to this same step, never blockers.
 
 ### How matching works
 
@@ -88,9 +175,10 @@ a **weighted** tally of the overlaps.
 
 **Example.** You're editing `src/auth.rs`, in the function `check`, topic `auth`. A blip's
 `about` is `{ paths: ["src/auth.rs"], symbols: ["AuthMiddleware"], tags: ["auth"] }`. Same
-file ✓ (strong) and same tag ✓ (weak) → high score → the radar escalates. There's no AI and
-no network here — just comparing lists — so it runs in well under a millisecond and can
-refresh every second for the statusline.
+file ✓ (strong) → high score → the radar escalates. (The shared `auth` tag would reinforce
+it once tags are scored; in v1 paths and symbols carry it.) There's no AI and no network
+here — just comparing lists — so it runs in well under a millisecond and can refresh every
+second for the statusline.
 
 **Why this way, and not AI similarity (yet).** The smarter alternative is *embeddings* —
 using a model to judge whether two things "mean" something similar, even with no words in
@@ -106,28 +194,46 @@ on your machine, and is fuzzier to query. The landscape research shows the cheap
 
 ## Two lifecycles — derived vs emitted
 
-The five kinds are not uniform. They split by how they come to exist and how they are
-stored:
+Only **two things are ever stored**: a presence register and an event log. `class`
+(`derived`/`emitted`) is a **read-time label derived from `kind`** — this table is the
+canonical map — **not** a stored field on the wire.
 
-| Kind | Class | Lifecycle | Storage semantics | AI? |
-|------|-------|-----------|-------------------|-----|
-| `presence` | derived | continuous while active | **state** — latest-wins **per actor** (a register cell) | no |
-| `collision` | derived | true while divergence exists | **state** — computed from peers' state/diffs | no |
-| `decision` | emitted | a discrete event | **event** — append, each expires individually | yes |
-| `incident` | emitted | a discrete event | **event** — append | yes |
-| `finding` | emitted | a discrete event | **event** — append | yes |
+| Kind | Class (derived from kind) | Stored as | AI? |
+|------|---------------------------|-----------|-----|
+| `presence` | derived | **state** — latest-wins **per instance** (a register cell) | no |
+| `decision` | emitted | **event** — append, each expires individually | yes |
+| `incident` | emitted | **event** — append | yes |
+| `finding` | emitted | **event** — append | yes |
 
-- **Derived clairs** (`presence`, `collision`) are *computed from activity*, carry **no AI
-  judgment**, and are **latest-wins** — there is one current presence per actor, not a
-  growing log. High-churn, short TTL, cheap. Per the landscape lesson (Crystal's
-  false-positive finding), `collision` must be gated on **committed/pushed** state, not raw
-  keystrokes.
-- **Emitted clairs** (`decision`, `incident`, `finding`) are *intentionally shared
-  events*, **intent-classified by the sender's AI** (feature 5), and **append-only** —
-  each is a discrete fact that expires on its own TTL.
+- **`presence`** is the one *derived, stored* kind: computed from activity, **no AI
+  judgment**, **latest-wins** (one current cell per instance, not a growing log). High-churn,
+  short TTL, cheap.
+- **`collision` is computed-only — never stored or synced.** It's a pure function of two
+  instances' `presence` plus their pushed diffs, both already available to a consumer, so it
+  is materialized **on the consumer side** as a `near_you` view (see
+  [stats-digest.md](stats-digest.md)), not written as its own clair. This kills a P2P
+  writer-election race and a second ref shape. Per the landscape lesson (Crystal's
+  false-positive finding), a collision is gated on **committed/pushed** state, not raw
+  keystrokes; hunk-level regions come from diffing peers' pushed commits locally (a cost in
+  the reducer's fold). Self-collision (two of your own instances) is the same computation.
+- **Emitted clairs** (`decision`, `incident`, `finding`) are *intentionally shared events*,
+  **intent-classified by the sender's AI** (feature 5), and **append-only** — each a discrete
+  fact that expires on its own TTL.
 
 This split is the single most load-bearing decision for the transport spec: a **register**
-(latest-per-actor) and a **log** (append events) want different ref shapes.
+(latest-per-instance) and a **log** (append events) want different ref shapes.
+
+### Ephemerality is best-effort, and something must prune
+
+The TTL is **enforced on the read side**: every reader treats an expired clair as gone, so
+the layer *looks* ephemeral. But nothing in TTL alone deletes refs or objects from the
+shared remote — and with no server, **some client must push the deletes**; a purely passive
+participant never prunes. So "not an audit log" is **best-effort on cooperating clients**,
+not a storage guarantee: a deleted ref also doesn't reclaim its objects until the host's GC,
+and a reader can retain anything it has fetched. Naming the owner of remote ref deletion is a
+**named requirement carried into the transport spec**, not solved here. Likewise, presence
+ref churn must not contend with the user's own ref-store/packed-refs lock — per-instance ref
+isolation and coalesced updates are options for the transport spec to weigh.
 
 ## TTL — first-pass defaults (to tune)
 
@@ -136,58 +242,70 @@ Expiry is `ts + ttl`. Consumers ignore expired clairs; the transport prunes them
 | Kind | Default TTL | Rationale |
 |------|-------------|-----------|
 | `presence` | ~5 min | Refreshed continuously while active; vanishes fast when idle/quit. |
-| `collision` | ~15 min | Lives while the overlap does; recomputed. |
 | `decision` / `incident` / `finding` | ~4 h | Stays relevant across a work session, then ages out. |
+
+(`collision` has no stored TTL — it's recomputed from live `presence` + diffs, so it exists
+exactly while its inputs do.)
 
 These are guesses (the archived lifecycle thinking used 30 min / 4 h). Tune empirically.
 
 ## Worked examples
 
-**Presence** (derived, state, latest-wins per actor):
+**Presence** — a stored clair (derived, state, latest-wins per instance):
 ```json
-{ "id": "0199e...", "kind": "presence", "class": "derived",
-  "actor": "rajiv", "branch": "feature/auth",
+{ "kind": "presence",
+  "principal": "rajiv", "instance": "rajiv.a3f", "branch": "feature/auth",
   "headline": "rajiv active in auth",
   "about": { "paths": ["src/auth.rs", "src/auth/"], "symbols": ["AuthMiddleware"], "tags": ["auth"] },
-  "ts": "2026-06-26T12:00:00Z", "ttl": "5m" }
+  "id": "0199e...", "ts": "2026-06-26T12:00:00Z", "ttl": "5m" }
 ```
 
-**Collision** (derived, computed, two actors):
+**Decision** — a stored clair (emitted, event, append, AI-classified):
 ```json
-{ "id": "0199f...", "kind": "collision", "class": "derived",
-  "actors": ["jb", "rajiv"], "branch": "feature/auth",
-  "headline": "merge-risk: you & rajiv both in auth.rs",
-  "about": { "paths": ["src/auth.rs"], "symbols": ["AuthMiddleware::check"], "tags": [] },
-  "ts": "2026-06-26T12:01:00Z", "ttl": "15m",
-  "body": { "region": "src/auth.rs:30-58", "your_branch": "feature/login", "their_branch": "feature/auth" } }
-```
-
-**Decision** (emitted, event, append, AI-classified):
-```json
-{ "id": "019a0...", "kind": "decision", "class": "emitted",
-  "actor": "rajiv", "branch": "feature/auth",
+{ "kind": "decision",
+  "principal": "rajiv", "instance": "rajiv.a3f", "branch": "feature/auth",
   "headline": "rajiv moved the auth guard into AuthMiddleware",
   "about": { "paths": ["src/auth.rs", "src/middleware.rs"], "symbols": ["AuthMiddleware"], "tags": ["auth", "refactor"] },
-  "ts": "2026-06-26T12:05:00Z", "ttl": "4h",
+  "id": "019a0...", "ts": "2026-06-26T12:05:00Z", "ttl": "4h",
   "body": "Moved the guard out of each handler into AuthMiddleware; handlers now assume authn." }
+```
+
+**Collision** — **not** a stored clair: a `near_you` view the consumer's reducer computes
+from two instances' `presence` + pushed diffs. Shown here as the materialized view, not a
+wire object (see [stats-digest.md](stats-digest.md)):
+```json
+{ "kind": "collision", "computed": true,
+  "instances": ["jb.7c1", "rajiv.a3f"], "principals": ["jb", "rajiv"],
+  "headline": "merge-risk: you & rajiv both in auth.rs",
+  "region": "src/auth.rs:30-58", "your_branch": "feature/login", "their_branch": "feature/auth" }
 ```
 
 ## Deferred (explicitly out of scope here)
 
 - **Transport** — ref layout (register vs log), append + TTL-prune mechanics at repo scale,
-  sync cadence, the local snapshot/cursor. → architecture spec.
-- **Relevance engine** — `match()` beyond facet overlap (semantic/embedding); the
-  consumer "work context". → sealed seam, the open hard problem.
-- **Schema versioning** — a `v` field will be needed once the wire format is fixed.
+  **who pushes ref deletes** (best-effort ephemerality has no owner without one), avoiding
+  contention with the user's own packed-refs lock, sync cadence (a **config knob**, tuned via
+  the benchmark lab), the local snapshot/cursor. → architecture spec.
+- **Relevance engine** — `match()` beyond facet overlap (semantic/embedding); the consumer
+  "work context". → sealed seam, the open hard problem.
+- **Schema versioning** — the `v` field + reader-ignores-unknown rule are fixed above; the
+  additive/removal bump rules and the reducer test contract → architecture spec.
 
 ## Open questions for review
 
-1. **Body storage** — inline vs referenced (`body_ref` to a git object)? Affects how cheap
-   L0 sync stays. Leaning referenced for emitted clairs, inline for tiny ones.
-2. **Is `collision` a stored clair at all**, or purely computed on the consumer side from
-   peers' `presence` + diffs (never written)? If computed-only, it has no TTL/storage and
-   the model simplifies to *one* derived-stored kind (presence) + emitted events.
-3. **Controlled `tags` vocabulary** — fixed set, or free with conventions? Free is easier
-   to emit; fixed is easier to match/query.
-4. **Per-actor presence granularity** — one presence cell per actor, or per actor×branch
-   (an actor in two worktrees)?
+1. **Body storage** — inline vs referenced (`body_ref` to a git object)? Caveat: a
+   referenced body object must stay **reachable from a synced ref** — bare-hash fetch is
+   disabled by default (incl. GitHub), so an unanchored loose object would 404 on demand and
+   be GC-able. Since clair bodies are tiny (a sentence / a region), **carry inline by
+   default**; reserve referenced-lazy for genuinely large bodies.
+2. **Emit safety** — emit exposure == remote read ACL, so emit must never publish content the
+   author hasn't committed. Should high-sensitivity kinds (`incident`/`finding`) be opt-in or
+   scrubbed harder given embargo/pre-disclosure risk? Secret/PII scrubbing of
+   `headline`+`about`+`body` is a **named requirement** owned by the emit/transport spec.
+3. **Cryptographic binding of `principal`** — future hardening so identity isn't purely
+   self-asserted (see *Trust model*). Out of scope for v1; the untrusted-data invariant is
+   the v1 control.
+
+*Resolved since first draft:* `collision` is **computed-only** (was Q2); `tags` are
+**display-only / not scored in v1** (was Q3); presence keys on **instance = session** (was
+Q4) — see [Identity](#identity--principal-and-instance).
