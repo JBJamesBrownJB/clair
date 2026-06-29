@@ -136,12 +136,13 @@ one below:
 
 ```json
 {
-  "schema_version": 1,
-  "run_id": "sysreg-<config-hash>-<trial>",
+  "schema_version": 2,
+  "run_id": "larder-<config-hash>-<trial>",
   "minted_at": "<iso8601, stamped by the harness>",
   "config": {
-    "arena": { "app": "Larder", "tag": "<git-tag>", "seed": "fixed-40-items", "debt": "curated" },
-    "arm": "B", "clair_level": "beacon",
+    "arena": { "app": "Larder", "branch": "arena/base", "sha": "1a5cd3d", "ref": "arena-base-v1",
+               "gate_sha": "bfa46b5", "seed": "fixed-40-items", "debt": "curated" },
+    "arm": "B", "clair_level": "beacon", "scenario": "migration-concurrent",
     "agent": { "harness": "claude-code-headless", "model": "claude-opus-4-8", "version": "<build>" },
     "k_index": 3, "k_total": 10,
     "integration": "mechanical-merge",
@@ -150,19 +151,118 @@ one below:
     "container": "<image digest>",
     "prompt_hashes": { "slice1": "...", "slice5": "..." }
   },
-  "outcome": { "all_pass": false,
-    "per_feature": { "auth": true, "history": true, "heatmap": false, "graph": false, "search": true },
-    "completed_within_budget": true },
-  "cost": { "build_tokens": 4200000, "rework_tokens": 900000, "sub_agent_tokens": 1100000, "wall_clock_min": 38 },
+
+  "outcome": {
+    "all_pass": false,
+    "per_feature": { "authz": true, "search": true, "export": false, "deps": true, "upgrade": false },
+    "completed_within_budget": true
+  },
+
+  "cost": {
+    "build_tokens": 4200000,
+    "rework_tokens": 900000,
+    "sub_agent_tokens": 1100000,
+    "clair_overhead_tokens": 180000,
+    "tokens_by_io": { "input": 3100000, "output": 1100000, "cached": 700000 },
+    "wall_clock_min": 38,
+    "integration_min": 3,
+    "gate_min": 6,
+    "est_usd": 0.0
+  },
+
+  "churn": {
+    "merged": { "added": 1840, "removed": 320, "net": 1520, "files": 41 },
+    "lockfile_loc": 2200
+  },
+
+  "per_agent": [
+    {
+      "slice": "authz", "model": "claude-opus-4-8",
+      "tokens": { "total": 980000, "input": 720000, "output": 180000, "cached": 80000 },
+      "sub_agents": 2, "turns": 31,
+      "wall_clock_min": 22,
+      "churn": { "added": 410, "removed": 60, "files": 9 },
+      "commits": 4, "tests_written": 6, "own_tests_pass": true,
+      "finished": "completed",
+      "clair": { "events_emitted": 12, "events_consumed": 7, "acted_on_signal": 3,
+                 "overhead_tokens": 60000, "added_latency_ms_p50": 90 }
+    }
+  ],
+
+  "overlap": {
+    "pairs": [
+      { "a": "search", "b": "export",
+        "shared_files": ["src/shared/serialize.ts", "src/server/queries/items.ts"],
+        "jaccard": 0.34 }
+    ]
+  },
+
   "conflicts": {
-    "textual": { "count": 4, "max_size_loc": 120 },
-    "semantic": { "unprotected_endpoints": 2, "duplicate_projections": 1, "regressions": 0 } },
-  "collisions": [ { "kind": "unprotected_endpoint", "endpoint": "/api/search", "blind_to": "auth" } ],
-  "gate": { "suite_sha": "<held-out suite version>", "passed": 158, "failed": 5, "total": 163 },
-  "artifacts": { "merged_diff": "<path|digest>", "transcript_dir": "<path>" },
+    "textual": { "count": 4, "files": 3, "hunks": 9,
+                 "loc": { "p50": 18, "p90": 90, "p99": 120, "max": 120 } },
+    "semantic": { "unprotected_endpoints": 2, "duplicate_projections": 1,
+                  "version_skew_type_errors": 5, "regressions": 0 }
+  },
+
+  "floors": {
+    "tsc_errors": 5, "tsc_pass": false,
+    "build_pass": true,
+    "lint_errors_delta": 0
+  },
+
+  "collisions": [
+    { "kind": "unprotected_endpoint", "endpoint": "/api/items/export", "blind_to": "authz" }
+  ],
+
+  "gate": {
+    "suite_sha": "<held-out suite version>", "passed": 33, "failed": 2, "total": 35,
+    "failed_by_category": { "authz": 0, "search": 0, "export": 2, "deps": 0, "upgrade": 0, "regression": 0 }
+  },
+
+  "merge_cycles": 1,
+
+  "artifacts": { "merged_diff": "<path|digest>", "transcript_dir": "<path>", "per_agent_diffs": "<dir>" },
   "excluded": null
 }
 ```
+
+**Field legend** (the non-obvious ones; reader ignores unknown keys, so the schema can grow):
+
+- **`cost.clair_overhead_tokens`** — clair's *own* cost (emit + query + context-swap payloads),
+  counted on clair's side and kept **separate** from `build_tokens`. Zero in Arm A. The B−A
+  verdict is read **net of this**, so clair must pay for itself — burying it in the agent totals
+  would be dishonest. The matching per-agent breakdown lives in `per_agent[].clair.overhead_tokens`.
+- **`churn`** — LOC added/removed/net + files, for the merged result and per agent. **Bin every
+  headline metric by churn** so clair can't "win" merely by inducing smaller diffs (the
+  proof-of-problem guardrail). `lockfile_loc` is isolated because slices 4 & 5 rewrite the
+  lockfile and would otherwise swamp the churn signal.
+- **`per_agent[]`** — the **per-agent axis** (conflict behaviour varies ~2× across agents). Per
+  slice: tokens (in/out/cached), sub-agents spawned, turns, wall-clock, churn, commits, tests
+  written, whether its *own* tests passed, and `finished` ∈ `completed | stalled | hit_cap`
+  (a `hit_cap`/`stalled` agent is a real counted outcome, not a retry).
+- **`overlap`** — the **touch-set overlap matrix**: which slice pairs edited the same files, with a
+  Jaccard score. This is the *independent variable* that manufactures collisions, so it's recorded
+  raw, not inferred after the fact.
+- **`conflicts.textual.loc`** — the **size distribution** (p50/p90/p99/max), not just a max — the
+  tail is where painful merges live. `conflicts.semantic.version_skew_type_errors` is the
+  TS-arena's signature failure (a feature written against the pre-upgrade API).
+- **`floors`** — the **cheap deterministic semantic-conflict detectors** run *at merge* before the
+  full gate: `tsc --noEmit` error count + pass, `build_pass`, and the lint delta. They catch a
+  large share of version-skew for ~free.
+- **`gate.failed_by_category`** — gate failures bucketed by slice + `regression`, so a fail is
+  attributable to *which* feature broke, not just a count.
+
+**Recorded-raw vs derived-in-rollup.** Everything above is a **raw fact** the harness measures for
+one trial. The headline efficiency numbers are **derived in the rollup** (pure functions of these
+records across K trials), never stored in the record: **RCC** = 1 − SR(k)/SR(1), **cost-to-all-pass**
+(tokens + wall-clock among gate-passers only), **tokens-per-passing-feature**, and medians/spread.
+Keeping them out of the record preserves the "emit immutable facts, derive every view" rule — a
+rollup is always recomputable, a record never lies.
+
+> **Honesty flag carried from the value benchmark:** raw **textual-conflict count is reported but
+> never the verdict** — slices 4 & 5 rewrite `pnpm-lock.yaml`, so it's ≈100% in both arms by
+> design. Value is read from `rework_tokens`, cost-to-all-pass, the `floors` (tsc/build), and the
+> semantic `gate` — never conflict count.
 
 **Storage layout** — immutable records, derived everything-else:
 
