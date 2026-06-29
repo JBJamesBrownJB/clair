@@ -63,32 +63,31 @@ A small but **realistic** application, pinned at a git tag for reproducibility:
 
 ## Arena layout — external, branched, pinned by tag
 
-The arena (`system-register`) stays its **own repo** — never vendored into clair. The runner
+The arena (`Larder`) stays its **own repo** — never vendored into clair. The runner
 clones it **fresh per trial** (each agent needs a clean worktree), so a vendored copy would never
 be the thing that runs; reproducibility comes from **pinning an immutable ref**, not co-location.
 clair holds the *harness*; the arena is a *swappable, pinned fixture*.
 
-Three branches on the arena:
-- **`legacy`** — the original stack frozen as-cloned (Quarkus 1.7 / CRA3). Base for the
-  *migration-concurrent* scenario.
-- **`main`** — upgraded to a current, green stack. Base for the *standard* scenario (features not
-  yet added — agents add them).
-- **`reference`** (held out) — `main` + all 5 features integrated and passing. **Never seen by
+Two branches on the arena (no `legacy` — `Larder` is green by construction, and the
+migration-concurrent churn comes from the maintenance slices, not a frozen old stack):
+- **`main`** — the curated-debt base on the modern-minus-one stack (key libs one major behind,
+  seeded advisories present, features not yet added — agents add them). Base for **both** scenarios.
+- **`reference`** (held out) — `main` + all 5 slices integrated and passing. **Never seen by
   benchmark agents.**
 
 **The `reference` branch earns its keep three ways:** (1) it **proves a coherent all-5 solution
 exists**, so a failing arm is attributable to *coordination*, not an impossible task — the
 attribution backbone; (2) it is the **source of the hidden acceptance gate** (behavioral tests +
 seed-data expected values); (3) a supporting "built-as-intended" quality oracle. **Guardrail:**
-the gate tests *behavior* ("every endpoint authz-gated," "search returns seeded systems"),
-**never structure** ("matches reference's classes") — diff-matching would measure conformance,
-not capability, and punish valid divergence.
+the gate tests *behavior* ("every endpoint authz-gated," "search returns seeded items," "no seeded
+advisory remains," "no pre-upgrade API left"), **never structure** ("matches reference's classes")
+— diff-matching would measure conformance, not capability, and punish valid divergence.
 
-**Pinning — done last, once each ref is frozen and green:** `legacy` is immutable on cut; tag
-`main` → `arena-base-v1` once the upgrade is green; tag `reference` → `arena-reference-v1` once
-the 5 features integrate and the gate passes. Use **annotated tags** (readable label → immutable
-SHA); the harness config references tags. Revising the arena later = a **new tag** (`v2`); past
-runs keep their old tag, so cross-version comparability is preserved.
+**Pinning — done last, once each ref is frozen and green:** tag `main` → `arena-base-v1` once the
+base is green; tag `reference` → `arena-reference-v1` once the 5 slices integrate and the gate
+passes. Use **annotated tags** (readable label → immutable SHA); the harness config references
+tags. Revising the arena later = a **new tag** (`v2`); past runs keep their old tag, so
+cross-version comparability is preserved.
 
 ## The workload — 5 thin-slice features
 
@@ -134,22 +133,26 @@ catch the case where the cheap beacon already captures most of it).
 
 ### Scenario configs (what the workload runs as)
 
-The same arms run under two scenarios, both terminating at the *same* modern-stack + 5-features
-state → **the same `reference` gate judges both**:
+The same arms run under two scenarios, both terminating at the *same* all-5-slices state →
+**the same `reference` gate judges both**. With the `Larder` arena the migration-concurrent flavor
+is **native to the slice set** — the two maintenance slices (#4 Dependabot remediation, #5 framework
+major upgrade) *are* the cross-cutting churn, so no separate `legacy` branch or bolted-on
+stack-migration agent is needed:
 
-- **Standard (control / calibration).** Base `main` (already upgraded); 5 feature agents. The
-  cheap **problem-in-vivo first experiment** runs here (mechanical merge, no resolver).
-- **Migration-concurrent (flagship).** Base `legacy`; 5 feature agents **+ 1 stack-migration
-  agent** running concurrently; **resolver in the loop**. Maximal cross-cutting churn → the
-  showcase demo *and* a high-signal measurement — *"ship 5 features while migrating the entire
-  stack, no human untangling the wreck."* **Caveat that keeps it honest:** raw textual-conflict
-  rate is *intentionally ignored* here (≈100% in both arms — a global `javax`→`jakarta`/MUI sweep
-  collides with everything); value is read from **rework tokens, cost-to-all-pass, and the
+- **Standard (control / calibration).** Base `arena-base-v1`; the **three vertical feature agents
+  (#1–#3)** only. The cheap **problem-in-vivo first experiment** runs here (mechanical merge, no
+  resolver) — the clean duplication / divergent-arch / silent-semantic batch.
+- **Migration-concurrent (flagship).** Base `arena-base-v1`; the same three feature agents **+ the
+  two maintenance agents (#4, #5)** running concurrently; **resolver in the loop**. Maximal
+  cross-cutting churn → the showcase demo *and* a high-signal measurement — *"ship features while a
+  framework upgrade and a security-bump batch land underneath you, no human untangling the wreck."*
+  **Caveat that keeps it honest:** raw textual-conflict rate is *intentionally ignored* here
+  (≈100% in both arms — the shared `pnpm-lock.yaml` + framework-major sweep collide with
+  everything); value is read from **rework tokens, cost-to-all-pass, the `tsc`/build gate, and the
   semantic gate**, never conflict count. Kept **out of the first experiment** — a resolver-less
   merge would fail in every arm and discriminate nothing. It stresses a *different* failure mode
-  (mass-rebase / freeze-coordination) than the standard batch (duplication / divergent-arch /
-  silent-semantic), and it's where clair's "global migration in flight — rebase/gate" signal is
-  arguably strongest.
+  (version-skew / mass-rebase / freeze-coordination) than the standard batch, and it's where
+  clair's "global change in flight — rebase/gate" signal is arguably strongest.
 
 ## Integration: build → fixed-merge → gate (and what we measure where)
 
@@ -297,15 +300,26 @@ to spawn sub-agents (token accounting aggregates them).
 
 ## The concrete arena
 
-Locked: **`system-register`** — see [benchmark-arena.md](benchmark-arena.md) for the
-instantiation (the event-sourced CQRS app, the shared-substrate map, the 5 grounded slice
-features, the deterministic seed, and the hidden acceptance gate).
+Locked: **`Larder`** — a purpose-built, decontaminated-by-construction **TypeScript/React** app.
+See [benchmark-arena-ts.md](benchmark-arena-ts.md) for the instantiation (the all-TS stack, the
+shared-substrate map, the 5 slices — three vertical features **plus a Dependabot-remediation slice
+and a framework major-upgrade slice** — the deterministic seed, and the hidden acceptance gate).
+
+> **Why not `system-register`** (the prior candidate, now retired — see
+> [benchmark-arena.md](benchmark-arena.md), superseded). It wins both validity axes but loses on
+> *readable signal* (Java/Quarkus → low agent success, high variance) and *run cost* (large revive
+> tax + Docker/registry-pull friction). `Larder` keeps both validity axes (authored fresh, held
+> private) while being all-TypeScript (readable signal), green by construction (no revive), and
+> SQLite-in-process (no Docker). Bonus: `tsc`/build act as a cheap deterministic semantic-conflict
+> detector, and the two maintenance slices make the migration-concurrent flagship a native property
+> of the slice set.
 
 ## Open questions
 
-1. **Arena: build vs adopt.** *Resolved:* adopt `system-register` (decontaminated + team-owned
-   → the two validity axes). Stack is Java/Quarkus — an agent-competence watch-item, controlled
-   across arms. See [benchmark-arena.md](benchmark-arena.md).
+1. **Arena: build vs adopt.** *Resolved:* **build** a purpose-built TS/React arena (`Larder`) —
+   keeps both validity axes (authored fresh, held private) while fixing the readable-signal and
+   run-cost problems that retired the adopt-`system-register` option (Java/Quarkus variance + revive
+   tax + Docker friction). See [benchmark-arena-ts.md](benchmark-arena-ts.md).
 2. **N agents / K trials** to start — smallest configuration that still produces collisions.
 3. **The exact 5 features** and their **touch-set overlap matrix** (the collision design).
 4. **Scoring split** — how much pure-objective vs LLM-judge; the rubric for "rework" and

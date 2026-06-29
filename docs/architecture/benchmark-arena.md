@@ -1,6 +1,14 @@
 # clair — Benchmark Arena: system-register
 
-> **Status: draft for review.** The **concrete instantiation** of the
+> **Status: SUPERSEDED — retired as the arena (kept for the record).** The locked arena is now the
+> purpose-built TypeScript/React app `Larder` — see
+> [benchmark-arena-ts.md](benchmark-arena-ts.md). `system-register` wins both validity axes
+> (decontaminated + team-owned) but was retired for **unreadable signal** (Java/Quarkus → low agent
+> success, high variance) and **run cost** (large revive tax + Docker/registry-pull friction). This
+> doc remains the reference for the shared-substrate / collision-map *thinking* that carried over to
+> the new arena; do not build against it.
+
+> **Original status: draft for review.** The **concrete instantiation** of the
 > [value benchmark](value-benchmark.md) against a real app: `system-register`. Defines the
 > arena, the shared-substrate collision map, the 5 slice features grounded in real files, the
 > deterministic seed data, and the hidden acceptance gate. The *methodology* lives in

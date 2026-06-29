@@ -1,6 +1,14 @@
 # clair — Arena Build & Test Environment (decision log)
 
-> **Status: decision pending — Option 1 is the frontrunner.** Where/how we run the
+> **Status: MOOT — `system-register` retired as the arena.** This whole decision existed because
+> reviving `system-register` needed a Linux+Docker toolchain. The locked arena is now the
+> purpose-built TS/React app `Larder` ([benchmark-arena-ts.md](benchmark-arena-ts.md)), which is
+> green by construction (no revive) and SQLite-in-process (no Docker), so the build-environment
+> problem this log was solving **no longer applies**. Kept for the record. Note one finding still
+> generalizes: the build env's egress blocks Docker-Hub pulls — a reason `Larder` deliberately
+> avoids containerized DBs at test time.
+>
+> **Original status: decision pending — Option 1 is the frontrunner.** Where/how we run the
 > `system-register` revive + upgrade, given it needs a Linux + Docker toolchain the dev host
 > doesn't have. Pick up here after the break. Context: [benchmark-arena.md](benchmark-arena.md)
 > (build order), [value-benchmark.md](value-benchmark.md) (why the arena must run at all).
