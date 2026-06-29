@@ -27,7 +27,8 @@ describe('items', () => {
   });
 
   it('creates, updates and deletes an item', async () => {
-    const token = await tokenFor('member');
+    // Deletion is admin-only after the authz-hardening slice landed.
+    const token = await tokenFor('admin');
 
     const created = await app.inject({
       method: 'POST',

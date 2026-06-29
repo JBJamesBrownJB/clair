@@ -3,19 +3,29 @@ import type { Item } from '../../shared/types';
 import {
   createItem,
   deleteItem,
+  getCategories,
   getItem,
   getItems,
   updateItem,
   type CreateItemInput,
+  type ItemFilters,
   type UpdateItemInput,
 } from '../api';
 
 const ITEMS_KEY = ['items'];
 
-export function useItems() {
+export function useItems(filters: ItemFilters = {}) {
   return useQuery<Item[]>({
-    queryKey: ITEMS_KEY,
-    queryFn: getItems,
+    // Key by the filters so changing the search/category/lowStock refetches.
+    queryKey: ['items', filters],
+    queryFn: () => getItems(filters),
+  });
+}
+
+export function useCategories() {
+  return useQuery<string[]>({
+    queryKey: ['items', 'categories'],
+    queryFn: getCategories,
   });
 }
 
@@ -32,7 +42,7 @@ export function useCreateItem() {
   return useMutation({
     mutationFn: (input: CreateItemInput) => createItem(input),
     onSuccess: () => {
-      qc.invalidateQueries(ITEMS_KEY);
+      qc.invalidateQueries({ queryKey: ITEMS_KEY });
     },
   });
 }
@@ -42,8 +52,8 @@ export function useUpdateItem(id: string) {
   return useMutation({
     mutationFn: (input: UpdateItemInput) => updateItem(id, input),
     onSuccess: () => {
-      qc.invalidateQueries(ITEMS_KEY);
-      qc.invalidateQueries(['items', id]);
+      qc.invalidateQueries({ queryKey: ITEMS_KEY });
+      qc.invalidateQueries({ queryKey: ['items', id] });
     },
   });
 }
@@ -53,7 +63,7 @@ export function useDeleteItem() {
   return useMutation({
     mutationFn: (id: string) => deleteItem(id),
     onSuccess: () => {
-      qc.invalidateQueries(ITEMS_KEY);
+      qc.invalidateQueries({ queryKey: ITEMS_KEY });
     },
   });
 }

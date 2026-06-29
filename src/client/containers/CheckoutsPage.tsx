@@ -22,7 +22,7 @@ function formatDate(iso: string | null): string {
 }
 
 export default function CheckoutsPage() {
-  const { data: checkouts, isLoading, isError, error } = useCheckouts();
+  const { data: checkouts, isPending, isError, error } = useCheckouts();
   const returnCheckout = useReturnCheckout();
 
   return (
@@ -31,7 +31,7 @@ export default function CheckoutsPage() {
         Checkouts
       </Typography>
 
-      {isLoading && (
+      {isPending && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress />
         </Box>
@@ -92,7 +92,7 @@ export default function CheckoutsPage() {
                           size="small"
                           variant="outlined"
                           onClick={() => returnCheckout.mutate(c.id)}
-                          disabled={returnCheckout.isLoading}
+                          disabled={returnCheckout.isPending}
                         >
                           Return
                         </Button>

@@ -1,9 +1,10 @@
 import {
   Alert,
   Box,
-  Chip,
   CircularProgress,
+  MenuItem,
   Paper,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -12,17 +13,12 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import type { Role } from '../../shared/types';
-import { useUsers } from '../hooks/useUsers';
-
-const ROLE_COLOR: Record<Role, 'error' | 'primary' | 'default'> = {
-  admin: 'error',
-  member: 'primary',
-  viewer: 'default',
-};
+import { ROLES, type Role } from '../../shared/types';
+import { useUpdateUserRole, useUsers } from '../hooks/useUsers';
 
 export default function UsersPage() {
-  const { data: users, isLoading, isError, error } = useUsers();
+  const { data: users, isPending, isError, error } = useUsers();
+  const updateRole = useUpdateUserRole();
 
   return (
     <Box>
@@ -30,7 +26,7 @@ export default function UsersPage() {
         Users
       </Typography>
 
-      {isLoading && (
+      {isPending && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress />
         </Box>
@@ -39,6 +35,14 @@ export default function UsersPage() {
       {isError && (
         <Alert severity="error">
           {error instanceof Error ? error.message : 'Failed to load users'}
+        </Alert>
+      )}
+
+      {updateRole.isError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {updateRole.error instanceof Error
+            ? updateRole.error.message
+            : 'Failed to update role'}
         </Alert>
       )}
 
@@ -58,7 +62,24 @@ export default function UsersPage() {
                   <TableCell sx={{ fontWeight: 600 }}>{u.name}</TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>
-                    <Chip label={u.role} color={ROLE_COLOR[u.role]} size="small" />
+                    <Select
+                      size="small"
+                      value={u.role}
+                      disabled={updateRole.isPending}
+                      onChange={(e) =>
+                        updateRole.mutate({
+                          id: u.id,
+                          role: e.target.value as Role,
+                        })
+                      }
+                      sx={{ minWidth: 120 }}
+                    >
+                      {ROLES.map((role) => (
+                        <MenuItem key={role} value={role}>
+                          {role}
+                        </MenuItem>
+                      ))}
+                    </Select>
                   </TableCell>
                 </TableRow>
               ))}

@@ -3,6 +3,7 @@ import type {
   AuthPayload,
   CheckoutRecord,
   Item,
+  Role,
   User,
 } from '../shared/types';
 
@@ -106,8 +107,61 @@ export function getMe(): Promise<User> {
 
 // ---- Items ----------------------------------------------------------------
 
-export function getItems(): Promise<Item[]> {
-  return apiFetch<Item[]>('/items');
+export interface ItemFilters {
+  q?: string;
+  category?: string;
+  location?: string;
+  lowStock?: boolean;
+}
+
+// Build a query string from the filter object, omitting empty/false values so
+// the server sees only the active filters.
+function buildItemQuery(filters: ItemFilters = {}): string {
+  const params = new URLSearchParams();
+  if (filters.q) params.set('q', filters.q);
+  if (filters.category) params.set('category', filters.category);
+  if (filters.location) params.set('location', filters.location);
+  if (filters.lowStock) params.set('lowStock', 'true');
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export function getItems(filters: ItemFilters = {}): Promise<Item[]> {
+  return apiFetch<Item[]>(`/items${buildItemQuery(filters)}`);
+}
+
+export function getCategories(): Promise<string[]> {
+  return apiFetch<string[]>('/items/categories');
+}
+
+export type ExportFormat = 'csv' | 'json';
+
+/**
+ * Exports items honouring the current filters. The endpoint is Bearer-gated and
+ * returns raw text (text/csv or application/json), so we fetch with the auth
+ * header and hand back a Blob the caller can turn into a download.
+ */
+export async function exportItems(
+  format: ExportFormat,
+  filters: ItemFilters = {},
+): Promise<Blob> {
+  const params = new URLSearchParams(buildItemQuery(filters).replace(/^\?/, ''));
+  params.set('format', format);
+
+  const headers: Record<string, string> = {};
+  const token = readToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`/api/items/export?${params.toString()}`, { headers });
+  if (!res.ok) {
+    throw new ApiError(
+      `Export failed (${res.status} ${res.statusText})`,
+      res.status,
+    );
+  }
+  return res.blob();
 }
 
 export function getItem(id: string): Promise<Item> {
@@ -165,4 +219,11 @@ export function returnCheckout(id: string): Promise<CheckoutRecord> {
 
 export function getUsers(): Promise<User[]> {
   return apiFetch<User[]>('/users');
+}
+
+export function updateUserRole(id: string, role: Role): Promise<User> {
+  return apiFetch<User>(`/users/${id}/role`, {
+    method: 'PATCH',
+    body: { role },
+  });
 }

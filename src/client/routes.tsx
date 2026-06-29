@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import type { ReactNode } from 'react';
+import { Navigate, Route, Routes } from 'react-router';
 import { useAuth } from './lib/auth-context';
 import Layout from './containers/Layout';
 import LoginPage from './containers/LoginPage';
@@ -15,6 +16,14 @@ function RequireAuth() {
   return <Layout />;
 }
 
+function RequireAdmin({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  if (user?.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -23,7 +32,14 @@ export default function AppRoutes() {
         <Route path="/" element={<ItemsPage />} />
         <Route path="/items/:id" element={<ItemDetailPage />} />
         <Route path="/checkouts" element={<CheckoutsPage />} />
-        <Route path="/users" element={<UsersPage />} />
+        <Route
+          path="/users"
+          element={
+            <RequireAdmin>
+              <UsersPage />
+            </RequireAdmin>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

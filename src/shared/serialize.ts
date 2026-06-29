@@ -81,6 +81,44 @@ export function isLowStock(item: Pick<Item, 'quantity' | 'lowStockThreshold'>): 
   return item.quantity <= item.lowStockThreshold;
 }
 
+// --- Export (CSV) ---------------------------------------------------------
+// Export funnels through the god-file too: the column order and escaping live
+// here so every export path agrees. Adding an export touches this function.
+
+export const ITEM_CSV_COLUMNS: Array<keyof Item> = [
+  'id',
+  'name',
+  'category',
+  'location',
+  'quantity',
+  'unit',
+  'lowStockThreshold',
+  'barcode',
+  'notes',
+  'createdAt',
+  'updatedAt',
+];
+
+function csvCell(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const s = String(value);
+  // Quote when the cell contains a comma, quote or newline.
+  if (/[",\n]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+export function itemsToCsv(items: any[]): string {
+  // Accepts raw rows or already-serialized items; serializeItemList normalises
+  // either into Item[] (string timestamps) before we build the cells.
+  const header = ITEM_CSV_COLUMNS.join(',');
+  const rows = serializeItemList(items).map((item) =>
+    ITEM_CSV_COLUMNS.map((col) => csvCell(item[col])).join(','),
+  );
+  return [header, ...rows].join('\n');
+}
+
 // The fragile envelope helpers. Some routes use these; others build the object
 // inline with subtly different shapes — by design.
 export function ok<T>(data: T): ApiResult<T> {

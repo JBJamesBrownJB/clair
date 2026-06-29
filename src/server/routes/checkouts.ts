@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { authenticate } from '../auth/middleware';
+import { authenticate, requireRole } from '../auth/middleware';
 import { listCheckouts } from '../queries/checkouts';
 import { serializeCheckout, ok, fail } from '../../shared/serialize';
 
@@ -16,8 +16,8 @@ export async function checkoutRoutes(app: FastifyInstance): Promise<void> {
     return ok(records.map(serializeCheckout));
   });
 
-  // Authenticated-only (the authz gap applies here too).
-  app.post('/api/checkouts', { preHandler: authenticate }, async (req, reply) => {
+  // Role-gated: viewers may not check items in or out.
+  app.post('/api/checkouts', { preHandler: [authenticate, requireRole('admin', 'member')] }, async (req, reply) => {
     const parsed = checkoutSchema.safeParse(req.body);
     if (!parsed.success) {
       reply.code(400);
@@ -52,7 +52,7 @@ export async function checkoutRoutes(app: FastifyInstance): Promise<void> {
     return ok(serializeCheckout(record));
   });
 
-  app.post('/api/checkouts/:id/return', { preHandler: authenticate }, async (req, reply) => {
+  app.post('/api/checkouts/:id/return', { preHandler: [authenticate, requireRole('admin', 'member')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const record = await app.prisma.checkoutRecord.findUnique({ where: { id } });
     if (!record) {

@@ -7,19 +7,29 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material';
-import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth-context';
 
-const NAV_LINKS = [
+interface NavLink {
+  label: string;
+  to: string;
+  adminOnly?: boolean;
+}
+
+const NAV_LINKS: NavLink[] = [
   { label: 'Items', to: '/' },
   { label: 'Checkouts', to: '/checkouts' },
-  { label: 'Users', to: '/users' },
+  { label: 'Users', to: '/users', adminOnly: true },
 ];
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const navLinks = NAV_LINKS.filter(
+    (link) => !link.adminOnly || user?.role === 'admin',
+  );
 
   const handleLogout = () => {
     logout();
@@ -37,7 +47,7 @@ export default function Layout() {
             Larder
           </Typography>
           <Stack direction="row" spacing={1} sx={{ flexGrow: 1 }}>
-            {NAV_LINKS.map((link) => (
+            {navLinks.map((link) => (
               <Button
                 key={link.to}
                 component={RouterLink}

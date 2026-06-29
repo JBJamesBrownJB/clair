@@ -18,5 +18,5 @@
     "noEmit": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["src", "tests", "prisma", "e2e", "*.config.ts"]
+  "include": ["src", "tests", "gate", "prisma", "e2e", "*.config.ts"]
 }

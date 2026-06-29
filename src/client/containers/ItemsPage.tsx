@@ -3,12 +3,15 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
+  MenuItem,
   Paper,
   Stack,
   Table,
@@ -20,9 +23,9 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { useCreateItem, useItems } from '../hooks/useItems';
-import type { CreateItemInput } from '../api';
+import { useNavigate } from 'react-router';
+import { useCategories, useCreateItem, useItems } from '../hooks/useItems';
+import { exportItems, type CreateItemInput, type ExportFormat, type ItemFilters } from '../api';
 
 const EMPTY_FORM: CreateItemInput = {
   name: '',
@@ -35,11 +38,26 @@ const EMPTY_FORM: CreateItemInput = {
 
 export default function ItemsPage() {
   const navigate = useNavigate();
-  const { data: items, isLoading, isError, error } = useItems();
+
+  const [q, setQ] = useState('');
+  const [category, setCategory] = useState('');
+  const [lowStock, setLowStock] = useState(false);
+
+  const filters: ItemFilters = {
+    q: q || undefined,
+    category: category || undefined,
+    lowStock: lowStock || undefined,
+  };
+
+  const { data: items, isPending, isError, error } = useItems(filters);
+  const { data: categories } = useCategories();
   const createItem = useCreateItem();
+
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CreateItemInput>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const handleOpen = () => {
     setForm(EMPTY_FORM);
@@ -58,6 +76,27 @@ export default function ItemsPage() {
     }
   };
 
+  const handleExport = async (format: ExportFormat) => {
+    setExportError(null);
+    setExporting(format);
+    try {
+      // Honour the active filters so the export matches the current view.
+      const blob = await exportItems(format, filters);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `larder-items.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <Box>
       <Stack
@@ -69,12 +108,74 @@ export default function ItemsPage() {
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
           Items
         </Typography>
-        <Button variant="contained" onClick={handleOpen}>
-          New item
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            onClick={() => handleExport('csv')}
+            disabled={exporting !== null}
+          >
+            {exporting === 'csv' ? 'Exporting…' : 'Export CSV'}
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => handleExport('json')}
+            disabled={exporting !== null}
+          >
+            {exporting === 'json' ? 'Exporting…' : 'Export JSON'}
+          </Button>
+          <Button variant="contained" onClick={handleOpen}>
+            New item
+          </Button>
+        </Stack>
       </Stack>
 
-      {isLoading && (
+      {/* Filter bar */}
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={2}
+        alignItems={{ sm: 'center' }}
+        sx={{ mb: 3 }}
+      >
+        <TextField
+          label="Search"
+          size="small"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          sx={{ minWidth: 220 }}
+        />
+        <TextField
+          label="Category"
+          size="small"
+          select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          sx={{ minWidth: 200 }}
+        >
+          <MenuItem value="">All categories</MenuItem>
+          {(categories ?? []).map((c) => (
+            <MenuItem key={c} value={c}>
+              {c}
+            </MenuItem>
+          ))}
+        </TextField>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={lowStock}
+              onChange={(e) => setLowStock(e.target.checked)}
+            />
+          }
+          label="Low stock only"
+        />
+      </Stack>
+
+      {exportError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {exportError}
+        </Alert>
+      )}
+
+      {isPending && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress />
         </Box>
@@ -104,7 +205,7 @@ export default function ItemsPage() {
                 <TableRow>
                   <TableCell colSpan={6}>
                     <Typography color="text.secondary" align="center" sx={{ py: 2 }}>
-                      No items yet. Create one to get started.
+                      No items match the current filters.
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -202,8 +303,8 @@ export default function ItemsPage() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="contained" disabled={createItem.isLoading}>
-              {createItem.isLoading ? 'Creating…' : 'Create'}
+            <Button type="submit" variant="contained" disabled={createItem.isPending}>
+              {createItem.isPending ? 'Creating…' : 'Create'}
             </Button>
           </DialogActions>
         </form>

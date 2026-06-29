@@ -21,8 +21,8 @@ export function useCreateCheckout() {
   return useMutation({
     mutationFn: (input: CreateCheckoutInput) => createCheckout(input),
     onSuccess: () => {
-      qc.invalidateQueries(CHECKOUTS_KEY);
-      qc.invalidateQueries(['items']);
+      qc.invalidateQueries({ queryKey: CHECKOUTS_KEY });
+      qc.invalidateQueries({ queryKey: ['items'] });
     },
   });
 }
@@ -32,8 +32,8 @@ export function useReturnCheckout() {
   return useMutation({
     mutationFn: (id: string) => returnCheckout(id),
     onSuccess: () => {
-      qc.invalidateQueries(CHECKOUTS_KEY);
-      qc.invalidateQueries(['items']);
+      qc.invalidateQueries({ queryKey: CHECKOUTS_KEY });
+      qc.invalidateQueries({ queryKey: ['items'] });
     },
   });
 }

@@ -17,7 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useParams, Link as RouterLink } from 'react-router';
 import { useDeleteItem, useItem, useUpdateItem } from '../hooks/useItems';
 import { useCreateCheckout } from '../hooks/useCheckouts';
 import type { UpdateItemInput } from '../api';
@@ -25,7 +25,7 @@ import type { UpdateItemInput } from '../api';
 export default function ItemDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: item, isLoading, isError, error } = useItem(id);
+  const { data: item, isPending, isError, error } = useItem(id);
   const updateItem = useUpdateItem(id ?? '');
   const deleteItem = useDeleteItem();
   const createCheckout = useCreateCheckout();
@@ -53,7 +53,7 @@ export default function ItemDetailPage() {
     }
   }, [item]);
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
         <CircularProgress />
@@ -217,9 +217,9 @@ export default function ItemDetailPage() {
                 <Button
                   type="submit"
                   variant="contained"
-                  disabled={updateItem.isLoading}
+                  disabled={updateItem.isPending}
                 >
-                  {updateItem.isLoading ? 'Saving…' : 'Save changes'}
+                  {updateItem.isPending ? 'Saving…' : 'Save changes'}
                 </Button>
               </Box>
             </Stack>
@@ -242,9 +242,9 @@ export default function ItemDetailPage() {
             color="error"
             variant="contained"
             onClick={handleDelete}
-            disabled={deleteItem.isLoading}
+            disabled={deleteItem.isPending}
           >
-            {deleteItem.isLoading ? 'Deleting…' : 'Delete'}
+            {deleteItem.isPending ? 'Deleting…' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -285,9 +285,9 @@ export default function ItemDetailPage() {
             <Button
               type="submit"
               variant="contained"
-              disabled={createCheckout.isLoading}
+              disabled={createCheckout.isPending}
             >
-              {createCheckout.isLoading ? 'Checking out…' : 'Check out'}
+              {createCheckout.isPending ? 'Checking out…' : 'Check out'}
             </Button>
           </DialogActions>
         </form>
