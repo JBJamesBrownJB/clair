@@ -159,18 +159,49 @@ structural (per the value-benchmark guardrail — test *behavior*, not "matches 
 Scoring stays per-feature pass + an all-pass gate, budget-capped, non-completers counted as failures
 — unchanged from [value-benchmark.md](value-benchmark.md).
 
-## Branches, tags & build order
+## Hosting — orphan branches in the clair repo (looks like a real user's repo)
 
-Mirrors the arena layout (external repo, pinned by annotated tag → immutable SHA; cloned fresh per
-trial). The **migration-concurrent flagship is native here** — slices 4 & 5 *are* migrations — so no
+The arena does **not** get its own repo. It lives on **orphan branches inside the clair repo** —
+separate root commit, separate tree, shared only by remote — so an arena checkout contains *only*
+the `Larder` app and **none of clair's source or docs**. To a trial agent it is indistinguishable
+from a real, standalone product repo that happens to have **adopted the clair plugin**. Full
+rationale, the "this is not vendoring" argument, and the co-location guardrail are in
+[value-benchmark.md → Arena layout](value-benchmark.md#arena-layout--isolated-orphan-branches-in-this-repo-pinned-by-tag).
+
+The runner clones a single branch by tag → a clean "real repo":
+
+```
+git clone --single-branch --branch arena-base-v1 <repo> trial/
+```
+
+### The clair plugin — present, but enable is the arm toggle
+
+The branch ships everything that makes it look like a real adopter (app, `package.json`, README,
+CI) **including the clair plugin files committed under `.claude/`** — *as if a real user installed
+it*. But **whether the plugin is active is the Arm A vs Arm B variable**, controlled by the harness,
+not baked into the branch:
+
+- **Arm A (isolation):** harness launches agents with the clair plugin **disabled** (config flag /
+  env), so the committed files are inert. Clean control.
+- **Arm B (presence/beacon/context-swap):** same branch, plugin **enabled** at the level under test.
+
+This keeps the one-flag toggle from [value-benchmark.md](value-benchmark.md) (*"Arm B is the same
+harness with the plugin enabled"*) **and** the "real user repo" feel, without conflating "helped" vs
+"present." *(Open question 7 below: commit-the-plugin-disabled vs harness-injects-it — both give a
+clean A/B; pick the one that's least bespoke in the runner.)*
+
+## Build order
+
+1. **Author the base** on `arena/base` — `Larder` green on the modern-minus-one stack, with the
+   curated debt (libs one major behind, seeded advisories, god-file), seed data, the *visible* test
+   suite, and the committed-but-toggleable clair plugin. Tag **`arena-base-v1`**.
+2. **Build `reference`** on `arena/reference` — base + all 5 slices integrated (upgrades applied,
+   deps remediated, 3 features added) + the hidden gate passing. Tag **`arena-reference-v1`**. Held
+   out from agents.
+
+The **migration-concurrent flagship is native here** — slices 4 & 5 *are* migrations — so no
 separate `legacy` branch is needed; the standard and flagship scenarios differ only in which slices
 run.
-
-1. **Author the base** — `Larder` green on the modern-minus-one stack, with the curated debt (libs
-   one major behind, seeded advisories, god-file), the seed data, and the *visible* test suite.
-   Tag **`arena-base-v1`**.
-2. **Build `reference`** — base + all 5 slices integrated (upgrades applied, deps remediated, 3
-   features added) + the hidden gate passing. Tag **`arena-reference-v1`**. Held out from agents.
 
 `reference` earns its keep the usual three ways: proves a coherent all-5 solution exists (failures
 are attributable to *coordination*, not impossibility); is the source of the hidden gate + seed
@@ -201,3 +232,7 @@ expected-values; and is a "built-as-intended" quality oracle.
 6. **Standard vs flagship split** — run #1–#3 as the "standard" scenario and add #4–#5 for the
    "migration-concurrent flagship", or always run all five? (Affects how the textual-conflict caveat
    is applied.)
+7. **Plugin: committed-but-disabled vs harness-injected.** Both give a clean Arm A/B toggle.
+   Committing it under `.claude/` makes the branch *look* like a real adopter (nice for realism/
+   demos); harness-injection keeps the branch plugin-agnostic (nice for swapping clair versions
+   without re-cutting the base). Pick whichever is least bespoke in the runner.

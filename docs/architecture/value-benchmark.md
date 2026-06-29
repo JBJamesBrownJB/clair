@@ -61,19 +61,37 @@ A small but **realistic** application, pinned at a git tag for reproducibility:
   error handling, a fragile shared type, a missing abstraction that invites copy-paste. Debt
   that funnels agents through the *same* files **amplifies collisions** — that's the point.
 
-## Arena layout — external, branched, pinned by tag
+## Arena layout — isolated orphan branches in this repo, pinned by tag
 
-The arena (`Larder`) stays its **own repo** — never vendored into clair. The runner
-clones it **fresh per trial** (each agent needs a clean worktree), so a vendored copy would never
-be the thing that runs; reproducibility comes from **pinning an immutable ref**, not co-location.
-clair holds the *harness*; the arena is a *swappable, pinned fixture*.
+The arena (`Larder`) lives as **orphan branches inside the clair repo** — branches with their
+**own root commit and tree**, sharing only the remote. An arena checkout therefore contains *only
+the arena app* (its own `package.json`, `src`, tests, README, CI) and **none of clair's code or
+docs** — it looks and behaves like a real, standalone user repo that happens to have adopted clair.
 
-Two branches on the arena (no `legacy` — `Larder` is green by construction, and the
-migration-concurrent churn comes from the maintenance slices, not a frozen old stack):
-- **`main`** — the curated-debt base on the modern-minus-one stack (key libs one major behind,
-  seeded advisories present, features not yet added — agents add them). Base for **both** scenarios.
-- **`reference`** (held out) — `main` + all 5 slices integrated and passing. **Never seen by
-  benchmark agents.**
+**This is not vendoring.** Vendoring copies the arena into clair's tree on a *shared* branch; here
+the histories never touch, a clair checkout never sees the arena, and an arena checkout never sees
+clair. We get the isolation of a separate repo with the convenience of one remote: one clone URL,
+one set of credentials, harness and fixture versioned together, and a run reproducible from a single
+ref. The runner still gets a clean tree because it clones **one branch by tag**:
+
+```
+git clone --single-branch --branch arena-base-v1 <repo> trial/   # only the arena tree, no clair
+```
+
+Reproducibility comes from **pinning an immutable annotated tag**, exactly as before — co-locating
+the harness doesn't change that. clair holds the *harness*; the arena is a *swappable, pinned
+fixture* that just happens to be parked on sibling orphan branches.
+
+**The branch / tag family** (all orphan; an `arena/` prefix makes the boundary unmistakable):
+- **`arena/base`** — the green `Larder` app on the modern-minus-one stack: curated debt, seed data,
+  the *visible* test suite, a real-looking README + CI; features **not** yet added. Base for **both**
+  scenarios. Tag → **`arena-base-v1`**.
+- **`arena/reference`** (held out) — `arena/base` + all 5 slices integrated + the hidden gate
+  passing. **Never seen by benchmark agents.** Tag → **`arena-reference-v1`**.
+- **post-benchmark / versioned arenas** — revising the arena (new debt, new slices, a stack bump) =
+  cut `arena/base` afresh and tag `arena-base-v2`, `…-v3`; past runs keep their old tag, so
+  cross-version comparability holds. Completed-run integrated worktrees can be parked on
+  `arena/run-<id>` branches for post-hoc inspection **without touching the pinned bases**.
 
 **The `reference` branch earns its keep three ways:** (1) it **proves a coherent all-5 solution
 exists**, so a failing arm is attributable to *coordination*, not an impossible task — the
@@ -83,11 +101,15 @@ the gate tests *behavior* ("every endpoint authz-gated," "search returns seeded 
 advisory remains," "no pre-upgrade API left"), **never structure** ("matches reference's classes")
 — diff-matching would measure conformance, not capability, and punish valid divergence.
 
-**Pinning — done last, once each ref is frozen and green:** tag `main` → `arena-base-v1` once the
-base is green; tag `reference` → `arena-reference-v1` once the 5 slices integrate and the gate
-passes. Use **annotated tags** (readable label → immutable SHA); the harness config references
-tags. Revising the arena later = a **new tag** (`v2`); past runs keep their old tag, so
-cross-version comparability is preserved.
+**Co-location guardrail (the one real cost):** nothing may merge across the boundary — an `arena/*`
+branch never merges into a clair code/docs branch or vice-versa. Enforce by the `arena/` prefix
+convention, a CI check that fails any PR mixing arena and clair paths, and never running a plain
+`git merge`/`checkout` across the two. Because the *running* fixture is always a single-branch
+clone of a pinned tag, an accidental cross-checkout in dev never reaches a trial.
+
+**Pinning — done last, once each ref is frozen and green:** tag `arena/base` → `arena-base-v1`;
+tag `arena/reference` → `arena-reference-v1`. Use **annotated tags** (readable label → immutable
+SHA); the harness config references tags.
 
 ## The workload — 5 thin-slice features
 
