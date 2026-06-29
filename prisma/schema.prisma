@@ -1,0 +1,52 @@
+// Larder data model. SQLite keeps a trial container to `pnpm i && pnpm test`
+// with no external services. Roles are stored as strings (SQLite has no enums);
+// the allowed set lives in src/shared/types.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String           @id @default(cuid())
+  email        String           @unique
+  name         String
+  role         String // "admin" | "member" | "viewer"
+  passwordHash String
+  createdAt    DateTime
+  checkouts    CheckoutRecord[]
+}
+
+model Item {
+  id                String           @id @default(cuid())
+  name              String
+  category          String
+  location          String
+  quantity          Int
+  unit              String           @default("units")
+  lowStockThreshold Int              @default(0)
+  barcode           String?          @unique
+  notes             String?
+  createdAt         DateTime
+  updatedAt         DateTime
+  checkouts         CheckoutRecord[]
+}
+
+model CheckoutRecord {
+  id          String    @id @default(cuid())
+  itemId      String
+  userId      String
+  quantity    Int
+  note        String?
+  checkedOutAt DateTime
+  returnedAt  DateTime?
+  item        Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([userId])
+}
