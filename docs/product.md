@@ -9,7 +9,9 @@
 
 **clair gives you and your agents ambient awareness of everyone else's activity across
 the repo** — without setup, without a server, and without becoming a log you have to
-read.
+read. In one line: **agent proximity awareness through progressive disclosure of live
+context.** Ambient awareness is the always-on layer; **proximity** is what earns a live
+event out of that noise and into your attention.
 
 **Who it's really for: the agent-majority repo.** Assume a near future where most repo
 activity comes from **agents**, not humans, and a human is increasingly an **orchestrator**
