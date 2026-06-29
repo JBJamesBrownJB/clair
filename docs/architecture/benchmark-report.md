@@ -31,7 +31,7 @@
 
 ```
 clair · Value Benchmark — Run Report                         (ILLUSTRATIVE — placeholder numbers)
-arena: system-register@<tag>  ·  slices: 5  ·  trials K: 10  ·  agent: Claude Code (headless)
+arena: Larder@<tag>  ·  slices: 5  ·  trials K: 10  ·  agent: Claude Code (headless)
 integration: mechanical-merge + hidden gate (no resolver)  ·  debt: clean  ·  seed: fixed-30-systems
 ```
 
@@ -140,7 +140,7 @@ one below:
   "run_id": "sysreg-<config-hash>-<trial>",
   "minted_at": "<iso8601, stamped by the harness>",
   "config": {
-    "arena": { "app": "system-register", "tag": "<git-tag>", "seed": "fixed-30-systems", "debt": "clean" },
+    "arena": { "app": "Larder", "tag": "<git-tag>", "seed": "fixed-40-items", "debt": "curated" },
     "arm": "B", "clair_level": "beacon",
     "agent": { "harness": "claude-code-headless", "model": "claude-opus-4-8", "version": "<build>" },
     "k_index": 3, "k_total": 10,
