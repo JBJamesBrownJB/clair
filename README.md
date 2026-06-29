@@ -1,9 +1,11 @@
 # clair
 
+> **Agent proximity awareness through progressive disclosure of live context.**
+
 clair gives you and your agents repo-level **ambient awareness** of everyone else's
-activity, via **progressive disclosure**: *a clair discloses a live event the way a
-skill discloses pre-defined context.* The full vision and its single source of truth
-live in [docs/product.md](docs/product.md).
+activity, surfaced by **proximity** via **progressive disclosure**: *a clair discloses a
+live event the way a skill discloses pre-defined context.* The full vision and its single
+source of truth live in [docs/product.md](docs/product.md).
 
 ## Status: reset to a clean skeleton
 
