@@ -1,6 +1,20 @@
 # clair — Benchmark Arena: a purpose-built TypeScript arena (with maintenance slices)
 
-> **Status: draft for review.** A **second, greenfield instantiation** of the
+> **Status: IMPLEMENTED (v1).** The `Larder` arena is built and lives on **isolated
+> orphan branches** in this repo (no clair source/docs in their trees):
+> - **`arena/base`** — the green app + curated debt + seed + visible suite + committed
+>   clair plugin. Intended tag `arena-base-v1`.
+> - **`arena/reference`** (held out) — `arena/base` + all 5 slices integrated + the
+>   hidden acceptance gate under `gate/`. Intended tag `arena-reference-v1`.
+>
+> The runner clones one branch by tag/SHA → a clean standalone repo. (Annotated tags
+> exist locally but the managed build environment blocks pushing tag refs, so pin by
+> **branch + the immutable tip SHA**; the exact SHAs are recorded in the
+> implementation commit on the clair docs branch.) Verified green per branch:
+> `tsc --noEmit`, ESLint, the Vitest visible suite, and the client build; the
+> reference additionally passes the held-out `gate/` suite.
+
+> **Original status: draft for review.** A **second, greenfield instantiation** of the
 > [value benchmark](value-benchmark.md), built to replace
 > [`system-register`](benchmark-arena.md) as the primary arena. Same methodology, different
 > fixture: a **purpose-built, decontaminated-by-construction TypeScript/React app** on an
