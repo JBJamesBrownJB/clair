@@ -319,10 +319,10 @@ describe("runBenchmark — resolver mode", () => {
       "run/test/S1", "run/test/S2", "run/test/S3",
     ]));
     expect(resolverBranchNames).toHaveLength(3);
-    // Budget mapped from resolver_budget in YAML: max_tokens:100000, max_turns:20, model:claude-opus-4-8
+    // Budget mapped from resolver_budget in YAML: max_tokens:2000000, max_turns:200, model:claude-opus-4-8
     expect(resolverBudget).toMatchObject({
-      max_tokens_per_agent: 100000,
-      max_turns_per_agent: 20,
+      max_tokens_per_agent: 2000000,
+      max_turns_per_agent: 200,
       model: "claude-opus-4-8",
     });
 
@@ -410,5 +410,95 @@ describe("runBenchmark — results wiring", () => {
     expect(typeof opts?.resultsDir).toBe("string");
     expect(opts?.stamp).toBeDefined();
     expect(typeof opts?.stamp).toBe("string");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 9: Dry-run on resolver config — integrationMode and resolverBudget in plan
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — dry-run resolver config integration mode", () => {
+  it("returns integrationMode:'resolver' and resolverBudget; NO stage fn called", async () => {
+    const provisionSpy = vi.fn();
+    const runAgentsSpy = vi.fn();
+    const mergeSlicesSpy = vi.fn();
+    const runResolverSpy = vi.fn();
+    const runGateSpy = vi.fn();
+    const writeReportSpy = vi.fn();
+    const teardownSpy = vi.fn();
+
+    const deps = {
+      provision: provisionSpy,
+      runAgents: runAgentsSpy,
+      mergeSlices: mergeSlicesSpy,
+      runResolver: runResolverSpy,
+      runGate: runGateSpy,
+      writeReport: writeReportSpy,
+      teardown: teardownSpy,
+    } as unknown as RunBenchmarkDeps;
+
+    const result = await runBenchmark(resolverRunPath, { dryRun: true }, deps);
+
+    expect(result.dryRun).toBe(true);
+    if (!result.dryRun) throw new Error("expected dryRun=true result");
+    const { plan } = result;
+
+    // Integration mode surfaced in the plan
+    expect(plan.integrationMode).toBe("resolver");
+    expect(plan.resolverBudget).toEqual({ max_tokens: 2000000, max_turns: 200 });
+
+    // CRITICAL: none of the stage functions called in dry-run
+    expect(provisionSpy).not.toHaveBeenCalled();
+    expect(runAgentsSpy).not.toHaveBeenCalled();
+    expect(mergeSlicesSpy).not.toHaveBeenCalled();
+    expect(runResolverSpy).not.toHaveBeenCalled();
+    expect(runGateSpy).not.toHaveBeenCalled();
+    expect(writeReportSpy).not.toHaveBeenCalled();
+    expect(teardownSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 10: Dry-run on mechanical config — integrationMode:'mechanical'; no resolverBudget
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — dry-run mechanical config integration mode", () => {
+  it("returns integrationMode:'mechanical' with no resolverBudget; NO stage fn called", async () => {
+    const provisionSpy = vi.fn();
+    const runAgentsSpy = vi.fn();
+    const mergeSlicesSpy = vi.fn();
+    const runResolverSpy = vi.fn();
+    const runGateSpy = vi.fn();
+    const writeReportSpy = vi.fn();
+    const teardownSpy = vi.fn();
+
+    const deps = {
+      provision: provisionSpy,
+      runAgents: runAgentsSpy,
+      mergeSlices: mergeSlicesSpy,
+      runResolver: runResolverSpy,
+      runGate: runGateSpy,
+      writeReport: writeReportSpy,
+      teardown: teardownSpy,
+    } as unknown as RunBenchmarkDeps;
+
+    const result = await runBenchmark(runPath, { dryRun: true }, deps);
+
+    expect(result.dryRun).toBe(true);
+    if (!result.dryRun) throw new Error("expected dryRun=true result");
+    const { plan } = result;
+
+    // standard-L1.run.yaml uses mechanical-merge mode
+    expect(plan.integrationMode).toBe("mechanical");
+    expect(plan.resolverBudget).toBeUndefined();
+
+    // CRITICAL: none of the stage functions called in dry-run
+    expect(provisionSpy).not.toHaveBeenCalled();
+    expect(runAgentsSpy).not.toHaveBeenCalled();
+    expect(mergeSlicesSpy).not.toHaveBeenCalled();
+    expect(runResolverSpy).not.toHaveBeenCalled();
+    expect(runGateSpy).not.toHaveBeenCalled();
+    expect(writeReportSpy).not.toHaveBeenCalled();
+    expect(teardownSpy).not.toHaveBeenCalled();
   });
 });

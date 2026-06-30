@@ -69,12 +69,37 @@ metrics:                        # what to capture (headline first)
 - **`status: future`** marks a config whose level needs an arena artifact that doesn't exist yet
   (e.g. L3 needs an extended reference + gate). Don't launch a `future` run until its artifacts land.
 
+## Integration modes
+
+The `integration.mode` field controls how slice branches are combined after agents finish.
+
+### `mechanical-merge` (baseline)
+Slice branches are merged in sequence with no conflict resolution. If any merge produces
+a textual conflict the merge is aborted and the trial is recorded as `did-not-complete`.
+This is the fixed, identical mechanism used across all arms — clair's value must appear as
+*fewer collisions*, not as better conflict resolution.
+
+### `resolver`
+Slice branches are merged with conflict markers left in place (`onConflict: leave`). A
+headless integration agent then runs against the conflicted worktree and attempts to bring
+the combined codebase to a green build/test state. On top of the mechanical metrics this
+adds:
+
+- **resolution-cost** — tokens + wall-clock the agent spent
+- **resolution-success** — did it reach green within budget?
+- **post-resolution gate** — does the resolved app pass the held-out gate?
+
+The comparison `resolutionCost(Arm A) − resolutionCost(Arm B)` (same resolver, held fixed)
+is clair's measurable dollar value: if clair-on agents collide less, the resolver finishes
+cheaper.
+
 ## The files here
 
-| File | Axis picks | Status |
-|------|-----------|--------|
-| [`standard-L1.run.yaml`](standard-L1.run.yaml) | Arm A · worktrees · L1 | ready — the first experiment |
-| [`migration-L2.run.yaml`](migration-L2.run.yaml) | Arm A · worktrees · L2 | ready — the flagship |
-| [`saturation-L3.run.yaml`](saturation-L3.run.yaml) | Arm A · worktrees · L3 | future — needs extended reference |
+| File | Integration mode | Axis picks | Status |
+|------|-----------------|-----------|--------|
+| [`standard-L1.run.yaml`](standard-L1.run.yaml) | mechanical-merge | Arm A · worktrees · L1 | ready — first experiment |
+| [`standard-L1-resolver.run.yaml`](standard-L1-resolver.run.yaml) | resolver | Arm A · worktrees · L1 | ready — cost-to-resolution variant |
+| [`migration-L2.run.yaml`](migration-L2.run.yaml) | mechanical-merge | Arm A · worktrees · L2 | ready — the flagship |
+| [`saturation-L3.run.yaml`](saturation-L3.run.yaml) | mechanical-merge | Arm A · worktrees · L3 | future — needs extended reference |
 
 To run Arm B, copy a ready config and change `arm:` (and `id:`); everything else stays identical.

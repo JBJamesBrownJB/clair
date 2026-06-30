@@ -1,7 +1,8 @@
-id: standard-L1-armA-resolver
+id: standard-L1-resolver-armA
 description: >-
-  Resolver-mode variant of standard-L1 — used only as a test fixture for the
-  resolver pipeline in benchmark/runner/__tests__/run.test.ts.
+  Resolver-mode variant of standard-L1 — runs a headless clair-off integration
+  agent to merge and fix conflicts after parallel slice builds, measuring
+  cost-to-resolution (tokens + wall-clock + resolution success rate).
 status: ready
 
 base:
@@ -36,8 +37,8 @@ integration:
   mode: resolver
   resolver: none
   resolver_budget:
-    max_tokens: 100000
-    max_turns: 20
+    max_tokens: 2000000   # starting points — calibrate from the first real resolver run
+    max_turns: 200
 
 trials:
   k: 5
@@ -51,3 +52,5 @@ metrics:
   - textual-conflicts
   - rework-tokens
   - wall-clock
+  - resolution-cost
+  - resolution-success

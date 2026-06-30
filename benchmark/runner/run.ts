@@ -60,6 +60,8 @@ export interface DryRunPlan {
   topology: string;
   model: string;
   budget: { max_tokens_per_agent: number; max_turns_per_agent: number };
+  integrationMode: "resolver" | "mechanical";
+  resolverBudget?: { max_tokens: number; max_turns: number };
   slices: Array<{ id: string; title: string; prompt: string }>;
 }
 
@@ -145,6 +147,14 @@ export async function runBenchmark(
   // Dry-run path — print the plan, return it, no git side-effects
   // ------------------------------------------------------------------
   if (opts.dryRun) {
+    const rawMode = run.integration?.mode;
+    const integrationMode: "resolver" | "mechanical" =
+      rawMode === "resolver" ? "resolver" : "mechanical";
+    const resolverBudget =
+      integrationMode === "resolver" && run.integration?.resolver_budget
+        ? run.integration.resolver_budget
+        : undefined;
+
     const plan: DryRunPlan = {
       runId: run.id,
       level: run.level,
@@ -155,6 +165,8 @@ export async function runBenchmark(
         max_tokens_per_agent: run.budget.max_tokens_per_agent,
         max_turns_per_agent: run.budget.max_turns_per_agent,
       },
+      integrationMode,
+      ...(resolverBudget ? { resolverBudget } : {}),
       slices: specs.map((s) => ({ id: s.id, title: s.title, prompt: s.prompt })),
     };
 
@@ -279,6 +291,13 @@ function printDryRunPlan(plan: DryRunPlan): void {
   console.log(
     `Budget:   max_tokens=${plan.budget.max_tokens_per_agent}  max_turns=${plan.budget.max_turns_per_agent}`
   );
+  if (plan.integrationMode === "resolver" && plan.resolverBudget) {
+    console.log(
+      `Integration: resolver  (resolver budget: max_tokens=${plan.resolverBudget.max_tokens} max_turns=${plan.resolverBudget.max_turns})`
+    );
+  } else {
+    console.log(`Integration: mechanical`);
+  }
   console.log(`Slices:   ${plan.slices.length}\n`);
 
   for (const slice of plan.slices) {
