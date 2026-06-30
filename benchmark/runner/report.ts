@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import type { AgentResult } from "./agent.js";
 import type { MergeResult } from "./merge.js";
 import type { GateResult } from "./gate.js";
+import type { ResolutionResult } from "./resolve.js";
 
 // ---------------------------------------------------------------------------
 // Resolve __dirname in ESM
@@ -58,6 +59,10 @@ export interface RunReport {
    *  The core signal: a silent semantic conflict that only the acceptance gate reveals. */
   semanticConflict: boolean;
   outcome: "all-pass" | "fail";
+  /** Full resolution result when a resolver agent was run; absent for mechanical runs. */
+  resolution?: ResolutionResult;
+  /** Convenience summary of resolver cost; absent for mechanical runs. */
+  resolutionCost?: { tokens: number; turns: number; wallMs: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -75,6 +80,7 @@ export function writeReport(
     merge: MergeResult;
     gate: GateResult;
     wallMs: number;
+    resolution?: ResolutionResult;
   },
   opts?: { outDir?: string; resultsDir?: string; stamp?: string }
 ): { json: RunReport; summary: string; path: string; resultPath: string | null } {
@@ -158,6 +164,14 @@ export function writeReport(
     totals: { tokens, turns, agentsDidNotComplete },
     semanticConflict,
     outcome,
+    ...(parts.resolution !== undefined && {
+      resolution: parts.resolution,
+      resolutionCost: {
+        tokens: parts.resolution.tokens,
+        turns: parts.resolution.turns,
+        wallMs: parts.resolution.wallMs,
+      },
+    }),
   };
 
   // -------------------------------------------------------------------------
@@ -174,6 +188,12 @@ export function writeReport(
   lines.push(`Textual conflicts: ${conflictTotal}`);
   lines.push(`Agents did-not-complete: ${agentsDidNotComplete}`);
   lines.push(`Totals: tokens=${tokens}, turns=${turns}, wall=${Math.round(parts.wallMs)}ms`);
+  if (parts.resolution !== undefined) {
+    const r = parts.resolution;
+    lines.push(
+      `Resolution: reached-green=${r.reachedGreen}  cost=${r.tokens} tokens / ${r.turns} turns / ${r.wallMs}ms  (didNotResolve=${r.didNotResolve})`
+    );
+  }
 
   const summary = lines.join("\n");
   console.log(summary);
