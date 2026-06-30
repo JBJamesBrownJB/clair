@@ -218,6 +218,19 @@ describe("runCI", () => {
     expect(testCall!.argv).toContain("--reporter=json");
   });
 
+  // Zero-test false-green guard: exit 0 + valid JSON with no assertions must NOT be green
+  it("exit 0 + valid JSON with zero assertions → testPass:false, green:false (no-tests false-green guard)", async () => {
+    const emptyTestJson = JSON.stringify({ testResults: [] });
+    const result: CIResult = await runCI("/fake/dir", {
+      runCmd: makeFakeRunCmd({ testOutput: emptyTestJson, testExit: 0 }),
+    });
+
+    expect(result.testPass).toBe(false);
+    expect(result.green).toBe(false);
+    expect(result.testTotals.passed).toBe(0);
+    expect(result.testTotals.failed).toBe(0);
+  });
+
   // Multi-suite totals: assertions summed across multiple testResults entries
   it("sums assertionResults across multiple testResults suites", async () => {
     const multiSuiteJson = JSON.stringify({

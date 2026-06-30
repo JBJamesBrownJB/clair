@@ -111,8 +111,9 @@ export async function runCI(
     // Unparseable vitest output — totals stay 0, testPass will be false.
   }
 
-  // testPass requires: command exited 0, JSON parsed cleanly, and no failures.
-  const testPass = testExit === 0 && parseOk && failed === 0;
+  // testPass requires: command exited 0, JSON parsed cleanly, no failures,
+  // and at least one assertion actually ran (guards against zero-test false-green).
+  const testPass = testExit === 0 && parseOk && failed === 0 && passed > 0;
 
   const green = buildClean && tscClean && testPass;
 
