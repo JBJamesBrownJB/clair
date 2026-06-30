@@ -277,13 +277,14 @@ describe("runGate", () => {
     expect(vitestCall!.argv).toContain("vitest.gate.config.ts");
   });
 
-  it("step order: git checkout → pnpm install → vitest → typecheck → build", async () => {
+  it("step order: git checkout → pnpm install → db:generate → vitest → typecheck → build", async () => {
     const run = makeRun();
     const order: string[] = [];
     const trackingRunCmd: RunCmdFn = async (cmd) => {
       const [c, sub] = cmd.argv;
       if (c === "git") order.push("git-checkout");
       else if (c === "pnpm" && sub === "install") order.push("pnpm-install");
+      else if (c === "pnpm" && sub === "db:generate") order.push("pnpm-db:generate");
       else if (c === "pnpm" && sub === "vitest") {
         order.push("vitest");
         return { stdout: ALL_PASS_JSON, exit: 0 };
@@ -297,6 +298,7 @@ describe("runGate", () => {
     expect(order).toEqual([
       "git-checkout",
       "pnpm-install",
+      "pnpm-db:generate",
       "vitest",
       "typecheck",
       "build",

@@ -31,16 +31,28 @@ function gitOutput(args: string[]): string {
 }
 
 /**
- * Run `pnpm install` in a worktree. On Windows `pnpm` is a `.cmd` shim that
+ * Run a pnpm script in a worktree. On Windows `pnpm` is a `.cmd` shim that
  * `execFileSync` cannot launch without a shell — mirror the win32 handling used
  * by agent.ts and gate.ts. (`git` is a real .exe and needs no shell.)
  */
-function defaultInstall(dir: string): void {
-  execFileSync("pnpm", ["install"], {
+function pnpm(dir: string, args: string[]): void {
+  execFileSync("pnpm", args, {
     cwd: dir,
     stdio: "inherit",
     ...(process.platform === "win32" ? { shell: true } : {}),
   });
+}
+
+/**
+ * Full dev setup for a slice worktree, mirroring the arena's getting-started:
+ * install deps, GENERATE the Prisma client (install alone does not), and create
+ * + seed the SQLite db. Without db:generate the app does not typecheck or run, so
+ * an agent would be building blind against a broken toolchain.
+ */
+function defaultInstall(dir: string): void {
+  pnpm(dir, ["install"]);
+  pnpm(dir, ["db:generate"]);
+  pnpm(dir, ["db:reset"]);
 }
 
 /**

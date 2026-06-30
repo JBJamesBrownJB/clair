@@ -148,6 +148,13 @@ export async function runGate(
   // Step 2: install dependencies (the gate may have additional deps).
   await runCmd({ argv: ["pnpm", "install"], cwd: dir });
 
+  // Step 2b: generate the Prisma client. `pnpm install` does NOT do this, and the
+  // gate's own setup uses `prisma db push --skip-generate`, so without an explicit
+  // generate the `@prisma/client` types and runtime are absent — typecheck fails
+  // and every DB-touching gate test errors. (Empirically: typecheck fails before
+  // this step, passes after.)
+  await runCmd({ argv: ["pnpm", "db:generate"], cwd: dir });
+
   // Step 3: run the gate test subset for this level with vitest JSON reporter.
   const gateFiles = LEVEL_GATE_FILES[run.level];
   if (!gateFiles) {
