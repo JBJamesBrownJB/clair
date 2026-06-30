@@ -2,11 +2,18 @@ import { describe, it, expect, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { writeReport } from "../report.js";
 import type { RunReport } from "../report.js";
 import type { AgentResult } from "../agent.js";
 import type { MergeResult } from "../merge.js";
 import type { GateResult } from "../gate.js";
+
+// Real benchmark/results/ path — used to assert no test pollution.
+const REAL_RESULTS_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../results"
+);
 
 // ---------------------------------------------------------------------------
 // Fixture factories
@@ -420,10 +427,10 @@ describe("writeReport — kept results store", () => {
     // Kept record written to resultsDir (created if absent)
     const expectedResultPath = path.join(resultsDir, "run-kept-001__20260101-000000.json");
     expect(resultPath).toBe(expectedResultPath);
-    expect(fs.existsSync(resultPath)).toBe(true);
+    expect(fs.existsSync(resultPath!)).toBe(true);
 
     // Content is the full report
-    const parsed: RunReport = JSON.parse(fs.readFileSync(resultPath, "utf-8"));
+    const parsed: RunReport = JSON.parse(fs.readFileSync(resultPath!, "utf-8"));
     expect(parsed.runId).toBe("run-kept-001");
     expect(parsed.outcome).toBe("all-pass");
     expect(parsed.totals.tokens).toBe(json.totals.tokens);
@@ -452,8 +459,8 @@ describe("writeReport — kept results store", () => {
     expect(rp1).not.toBe(rp2);
 
     // Both files exist
-    expect(fs.existsSync(rp1)).toBe(true);
-    expect(fs.existsSync(rp2)).toBe(true);
+    expect(fs.existsSync(rp1!)).toBe(true);
+    expect(fs.existsSync(rp2!)).toBe(true);
 
     // Paths contain the respective stamps
     expect(rp1).toContain("20260101-080000");
@@ -477,6 +484,34 @@ describe("writeReport — kept results store", () => {
 
     // Without stamp, falls back to "latest"
     expect(resultPath).toContain("run-kept-003__latest.json");
-    expect(fs.existsSync(resultPath)).toBe(true);
+    expect(fs.existsSync(resultPath!)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 7: no resultsDir → resultPath=null, benchmark/results/ untouched
+// ---------------------------------------------------------------------------
+
+describe("writeReport — no resultsDir → no kept file (opt-in guard)", () => {
+  it("returns resultPath=null and writes nothing to benchmark/results/ when resultsDir is omitted", () => {
+    const outDir = makeTempDir();
+
+    const { resultPath } = writeReport(
+      "run-no-kept-dir",
+      {
+        agents: makeAgents(),
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 1000,
+      },
+      { outDir }  // explicitly NO resultsDir
+    );
+
+    // resultPath must be null — no kept file written
+    expect(resultPath).toBeNull();
+
+    // No file created under the real benchmark/results/ dir
+    const wouldBeFile = path.join(REAL_RESULTS_DIR, "run-no-kept-dir__latest.json");
+    expect(fs.existsSync(wouldBeFile)).toBe(false);
   });
 });

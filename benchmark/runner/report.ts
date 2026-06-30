@@ -21,12 +21,6 @@ const __dirname = path.dirname(__filename);
 /** Default output directory — git-ignored. */
 const DEFAULT_OUT_DIR = path.join(__dirname, "out");
 
-/**
- * Default results directory — kept in git as experiment evidence.
- * Resolves to benchmark/results/ from the repo root (one level above benchmark/runner/).
- */
-const DEFAULT_RESULTS_DIR = path.join(__dirname, "..", "results");
-
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -83,9 +77,8 @@ export function writeReport(
     wallMs: number;
   },
   opts?: { outDir?: string; resultsDir?: string; stamp?: string }
-): { json: RunReport; summary: string; path: string; resultPath: string } {
+): { json: RunReport; summary: string; path: string; resultPath: string | null } {
   const outDir = opts?.outDir ?? DEFAULT_OUT_DIR;
-  const resultsDir = opts?.resultsDir ?? DEFAULT_RESULTS_DIR;
   const stamp = opts?.stamp ?? "latest";
 
   // -------------------------------------------------------------------------
@@ -193,10 +186,15 @@ export function writeReport(
   const filePath = path.join(outDir, `${runId}.json`);
   fs.writeFileSync(filePath, JSON.stringify(json, null, 2), "utf-8");
 
-  // 2. Kept per-run record — one file per run, never overwritten (benchmark/results/ in git).
-  fs.mkdirSync(resultsDir, { recursive: true });
-  const resultPath = path.join(resultsDir, `${runId}__${stamp}.json`);
-  fs.writeFileSync(resultPath, JSON.stringify(json, null, 2), "utf-8");
+  // 2. Kept per-run record — written ONLY when the caller explicitly supplies
+  //    opts.resultsDir. Omitting resultsDir skips the write and returns null.
+  //    This prevents tests from polluting the git-tracked benchmark/results/ dir.
+  let resultPath: string | null = null;
+  if (opts?.resultsDir !== undefined) {
+    fs.mkdirSync(opts.resultsDir, { recursive: true });
+    resultPath = path.join(opts.resultsDir, `${runId}__${stamp}.json`);
+    fs.writeFileSync(resultPath, JSON.stringify(json, null, 2), "utf-8");
+  }
 
   return { json, summary, path: filePath, resultPath };
 }
