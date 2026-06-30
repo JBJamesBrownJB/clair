@@ -71,33 +71,40 @@ metrics:                        # what to capture (headline first)
 ## Integration modes
 
 The `integration.mode` field controls how slice branches are combined after agents finish.
+Two modes exist; `resolver` mode has been removed.
 
 ### `mechanical` (baseline)
 Slice branches are merged in sequence with no conflict resolution. If any merge produces
 a textual conflict the merge is aborted and the trial is recorded as `did-not-complete`.
-This is the fixed, identical mechanism used across all arms — clair's value must appear as
-*fewer collisions*, not as better conflict resolution.
+This is the cheapest signal — the fixed, identical mechanism used across all arms. clair's
+value must appear as *fewer collisions*, not as better conflict resolution.
 
-### `resolver`
-Slice branches are merged with conflict markers left in place (`onConflict: leave`). A
-headless integration agent then runs against the conflicted worktree and attempts to bring
-the combined codebase to a green build/test state. On top of the mechanical metrics this
-adds:
+### `pr-queue` (realistic integration)
+Every slice branch is opened as a PR. A CI-gated fix-loop (clair-OFF) processes each PR
+in order (S1 → S2 → S3), merging each branch only after it passes CI. The fix-loop drives
+to green within a `queue_budget`; trials that exceed budget are recorded as `did-not-complete`.
 
-- **resolution-cost** — tokens + wall-clock the agent spent
-- **resolution-success** — did it reach green within budget?
-- **post-resolution gate** — does the resolved app pass the held-out gate?
+On top of the mechanical metrics this adds:
 
-The comparison `resolutionCost(Arm A) − resolutionCost(Arm B)` (same resolver, held fixed)
-is clair's measurable dollar value: if clair-on agents collide less, the resolver finishes
-cheaper.
+- **cost-to-success** — total tokens + wall-clock to drain the entire queue green
+- **success-rate** — fraction of trials where all PRs merged within budget
+- **test-discipline** — test files added per slice (agent discipline signal)
+- **hidden-gate audit** — the held-out gate runs after the queue drains; visible-green ≠
+  gate-pass is a headline finding (correctness audit), not a bug
+
+The comparison `cost-to-success(Arm A) − cost-to-success(Arm B)` (same fix-loop, held fixed)
+is clair's measurable dollar value: if clair-on agents collide less, the fix-loop finishes
+cheaper and more often.
+
+> **Note:** `resolver` mode no longer exists. Configs referencing `mode: resolver` fall
+> through to `mechanical` (safe default) but should be updated or removed.
 
 ## The files here
 
 | File | Integration mode | Axis picks | Status |
 |------|-----------------|-----------|--------|
 | [`standard-L1.run.yaml`](standard-L1.run.yaml) | mechanical | Arm A · worktrees · L1 | ready — first experiment |
-| [`standard-L1-resolver.run.yaml`](standard-L1-resolver.run.yaml) | resolver | Arm A · worktrees · L1 | ready — cost-to-resolution variant |
+| [`standard-L1-prqueue.run.yaml`](standard-L1-prqueue.run.yaml) | pr-queue | Arm A · worktrees · L1 | ready — cost-to-success variant |
 | [`migration-L2.run.yaml`](migration-L2.run.yaml) | mechanical | Arm A · worktrees · L2 | ready — the flagship |
 | [`saturation-L3.run.yaml`](saturation-L3.run.yaml) | mechanical | Arm A · worktrees · L3 | future — needs extended reference |
 

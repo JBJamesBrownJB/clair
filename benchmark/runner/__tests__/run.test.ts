@@ -26,6 +26,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../../..");
 const runPath = path.join(repoRoot, "benchmark/runs/standard-L1.run.yaml");
 const prQueueRunPath = path.join(__dirname, "fixtures/pr-queue.run.yaml");
+const prodPrQueueRunPath = path.join(repoRoot, "benchmark/runs/standard-L1-prqueue.run.yaml");
 // resolver-nobudget.run.yaml is a local fixture with mode:'resolver' — used to test that
 // unknown/legacy modes fall to mechanical (resolver code path must be GONE).
 // Using a local fixture so removing benchmark/runs/standard-L1-resolver.run.yaml later
@@ -661,5 +662,41 @@ describe("runBenchmark — no resolve.js import (static check via module shape)"
 
     // runResolver must NOT be a key in RunBenchmarkDeps
     expect("runResolver" in deps).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 15: Production pr-queue config — standard-L1-prqueue.run.yaml parses correctly
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — production pr-queue config (standard-L1-prqueue.run.yaml)", () => {
+  it("dry-run returns integrationMode:'pr-queue' with queue_budget { max_tokens:4000000, max_turns:400 }", async () => {
+    const deps = {
+      provision: vi.fn(),
+      runAgents: vi.fn(),
+      mergeSlices: vi.fn(),
+      runPrQueue: vi.fn(),
+      runGate: vi.fn(),
+      writeReport: vi.fn(),
+      teardown: vi.fn(),
+    } as unknown as RunBenchmarkDeps;
+
+    const result = await runBenchmark(prodPrQueueRunPath, { dryRun: true }, deps);
+
+    expect(result.dryRun).toBe(true);
+    if (!result.dryRun) throw new Error("expected dryRun=true result");
+    const { plan } = result;
+
+    expect(plan.integrationMode).toBe("pr-queue");
+    expect(plan.queueBudget).toEqual({ max_tokens: 4000000, max_turns: 400 });
+    // Confirm it is the production config identity and shape
+    expect(plan.runId).toBe("standard-L1-prqueue-armA");
+    expect(plan.level).toBe("L1");
+    expect(plan.arm).toBe("A");
+    expect(plan.slices).toHaveLength(3);
+
+    // No stage functions called in dry-run
+    expect(deps.provision).not.toHaveBeenCalled();
+    expect(deps.runPrQueue).not.toHaveBeenCalled();
   });
 });
