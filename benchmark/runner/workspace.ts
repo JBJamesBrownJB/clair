@@ -101,22 +101,61 @@ export async function provision(
 }
 
 /**
- * Remove all worktrees and delete their branches, then prune.
- * Idempotent: removing an already-gone worktree/branch does not throw.
+ * Remove all worktrees (but NOT their branches), then prune.
+ *
+ * Evidence-preserving: branches are intentionally kept for post-hoc inspection.
+ * Unique runIds (stamped in run.ts before provisioning) ensure branches from
+ * different runs never collide.
+ *
+ * Worktree removal is retried once after a short delay to handle Windows file
+ * locks or "directory not empty" errors. If removal still fails after the retry,
+ * the worktree is left REGISTERED AND INTACT — we never delete the directory out
+ * from under git. Doing so would cause the .git symlink in the dir to resolve to
+ * the parent repo, corrupting its worktree state.
+ *
+ * Idempotent and best-effort: never throws.
+ *
+ * @param deps.retryDelayMs  How long to wait before the single retry (default: 500ms).
+ *                           Inject 0 in tests to avoid actual waits.
  */
-export async function teardown(workspaces: Workspace[]): Promise<void> {
+export async function teardown(
+  workspaces: Workspace[],
+  deps?: { retryDelayMs?: number }
+): Promise<void> {
+  const delayMs = deps?.retryDelayMs ?? 500;
+
   for (const w of workspaces) {
+    let removed = false;
+
+    // First attempt
     try {
       git(["worktree", "remove", "--force", w.dir]);
+      removed = true;
     } catch {
-      // Worktree already removed — idempotent
+      // May be a Windows file lock or "directory not empty" — retry once after delay
     }
-    try {
-      git(["branch", "-D", w.branch]);
-    } catch {
-      // Branch already deleted — idempotent
+
+    if (!removed) {
+      await new Promise<void>((r) => setTimeout(r, delayMs));
+      try {
+        git(["worktree", "remove", "--force", w.dir]);
+        removed = true;
+      } catch {
+        // Still failed — leave registered and intact to prevent .git corruption
+        console.warn(
+          `[teardown] WARNING: could not remove worktree at "${w.dir}" after retry — ` +
+            `leaving registered and intact to avoid git corruption.`
+        );
+      }
     }
+
+    // NOTE: git branch -D intentionally omitted.
+    // Branches survive teardown for post-hoc inspection.
+    // Unique runIds (derived in run.ts) prevent collisions between runs.
   }
+
+  // Prune any worktree registry entries whose directory is already gone.
+  // Safe: git worktree prune only removes entries for missing directories.
   try {
     git(["worktree", "prune"]);
   } catch {

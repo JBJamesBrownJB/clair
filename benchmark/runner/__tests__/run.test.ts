@@ -635,6 +635,104 @@ describe("runBenchmark — dry-run pr-queue config integration mode", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Test 16: Effective runId stamped in live path
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — effective runId stamped in live path", () => {
+  it("provision is called with run.id = <originalId>__<stamp> derived from deps.now", async () => {
+    const fixedDate = new Date("2024-01-15T10:30:00.000Z");
+    // toISOString → "2024-01-15T10:30:00.000Z"; replace /[:.]/g → "2024-01-15T10-30-00-000Z"
+    const expectedId = `standard-L1-armA__2024-01-15T10-30-00-000Z`;
+
+    let capturedRunId: string | undefined;
+    const provisionSpy = vi.fn(async (...args: Parameters<NonNullable<RunBenchmarkDeps["provision"]>>) => {
+      capturedRunId = args[0].id;
+      return fakeWorkspaces;
+    }) as unknown as RunBenchmarkDeps["provision"];
+
+    const deps: RunBenchmarkDeps = {
+      provision: provisionSpy,
+      runAgents: vi.fn(async () => fakeAgents),
+      mergeSlices: vi.fn(async () => fakeMerge),
+      runGate: vi.fn(async () => fakeGate),
+      writeReport: vi.fn(() => fakeReportResult),
+      teardown: vi.fn(async () => {}),
+      now: () => fixedDate,
+    };
+
+    await runBenchmark(runPath, { dryRun: false }, deps);
+
+    expect(capturedRunId).toBe(expectedId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 17: Two different deps.now values yield different effective runIds
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — two runs with different deps.now yield different effective ids", () => {
+  it("different deps.now → different run.id passed to provision (no collision between runs)", async () => {
+    const date1 = new Date("2024-01-15T10:30:00.000Z");
+    const date2 = new Date("2024-01-16T11:00:00.000Z");
+
+    const capturedIds: string[] = [];
+
+    const makeDeps = (now: Date): RunBenchmarkDeps => ({
+      provision: vi.fn(async (...args: Parameters<NonNullable<RunBenchmarkDeps["provision"]>>) => {
+        capturedIds.push(args[0].id);
+        return fakeWorkspaces;
+      }) as unknown as RunBenchmarkDeps["provision"],
+      runAgents: vi.fn(async () => fakeAgents),
+      mergeSlices: vi.fn(async () => fakeMerge),
+      runGate: vi.fn(async () => fakeGate),
+      writeReport: vi.fn(() => fakeReportResult),
+      teardown: vi.fn(async () => {}),
+      now: () => now,
+    });
+
+    await runBenchmark(runPath, { dryRun: false }, makeDeps(date1));
+    await runBenchmark(runPath, { dryRun: false }, makeDeps(date2));
+
+    expect(capturedIds).toHaveLength(2);
+    expect(capturedIds[0]).not.toBe(capturedIds[1]);
+    // Both share the logical id prefix
+    expect(capturedIds[0]).toContain("standard-L1-armA__");
+    expect(capturedIds[1]).toContain("standard-L1-armA__");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 18: Dry-run does NOT stamp the runId
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — dry-run does NOT stamp the runId", () => {
+  it("plan.runId is the original config id (no timestamp suffix); deps.now is never called", async () => {
+    const nowSpy = vi.fn(() => new Date("2024-01-15T10:30:00.000Z"));
+
+    const deps: RunBenchmarkDeps = {
+      provision: vi.fn(),
+      runAgents: vi.fn(),
+      mergeSlices: vi.fn(),
+      runGate: vi.fn(),
+      writeReport: vi.fn(),
+      teardown: vi.fn(),
+      now: nowSpy,
+    } as unknown as RunBenchmarkDeps;
+
+    const result = await runBenchmark(runPath, { dryRun: true }, deps);
+
+    expect(result.dryRun).toBe(true);
+    if (!result.dryRun) throw new Error("expected dryRun=true");
+
+    // Dry-run preserves the original id — no stamp appended
+    expect(result.plan.runId).toBe("standard-L1-armA");
+
+    // deps.now must NOT have been called (dry-run is side-effect-free)
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Test 14: No import of resolve.js — resolver code path GONE
 // ---------------------------------------------------------------------------
 

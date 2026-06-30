@@ -124,6 +124,12 @@ export interface RunBenchmarkDeps {
   /** Shell runner used for integration-worktree creation and testDiscipline diffs.
    *  Defaults to defaultRunCmd. Inject a fake in tests to avoid real git calls. */
   runCmd?: RunCmdFn;
+  /**
+   * Clock source for deriving the unique runId stamp. Defaults to `() => new Date()`.
+   * Inject a fixed Date in tests so the effective runId is deterministic.
+   * Only used in the live path — dry-run never calls this.
+   */
+  now?: () => Date;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +202,16 @@ export async function runBenchmark(
   // ------------------------------------------------------------------
   // Live path — teardown runs in finally so it executes even on error.
   // ------------------------------------------------------------------
+
+  // Derive a unique effective runId so every live run gets distinct branch,
+  // worktree, and results-file names. Two runs of the same config will never
+  // share a branch or worktree, making leftovers non-colliding and diagnosable.
+  // Dry-run is intentionally excluded — it is side-effect-free and must not
+  // mutate any state (including run.id).
+  const _now = deps.now ?? (() => new Date());
+  const stamp = _now().toISOString().replace(/[:.]/g, "-");
+  run.id = `${run.id}__${stamp}`;
+
   const budget: Budget = {
     max_tokens_per_agent: run.budget.max_tokens_per_agent,
     max_turns_per_agent: run.budget.max_turns_per_agent,
