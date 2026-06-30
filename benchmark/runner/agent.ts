@@ -33,6 +33,8 @@ export interface AgentResult {
   wallMs: number;
   exit: number;
   didNotComplete: boolean;
+  /** Set when the claude process failed to launch (e.g. ENOENT). Distinguishes env problems from agent failures. */
+  error?: string;
 }
 
 /**
@@ -44,7 +46,7 @@ export type RunClaudeFn = (args: {
   prompt: string;
   model: string;
   maxTurns: number;
-}) => Promise<{ stdout: string; exit: number }>;
+}) => Promise<{ stdout: string; exit: number; error?: string }>;
 
 /**
  * Injectable committed-check abstraction.
@@ -72,7 +74,7 @@ function defaultRunClaude(args: {
   prompt: string;
   model: string;
   maxTurns: number;
-}): Promise<{ stdout: string; exit: number }> {
+}): Promise<{ stdout: string; exit: number; error?: string }> {
   return new Promise((resolve) => {
     const child = spawn(
       "claude",
@@ -83,7 +85,12 @@ function defaultRunClaude(args: {
         "--model", args.model,
         "--max-turns", String(args.maxTurns),
       ],
-      { cwd: args.cwd, stdio: ["pipe", "pipe", "ignore"] }
+      {
+        cwd: args.cwd,
+        stdio: ["pipe", "pipe", "ignore"],
+        // On Windows, `claude` is a .cmd wrapper; spawn needs shell:true to resolve it.
+        ...(process.platform === "win32" ? { shell: true } : {}),
+      }
     );
 
     let stdout = "";
@@ -97,8 +104,8 @@ function defaultRunClaude(args: {
     child.on("close", (code: number | null) => {
       resolve({ stdout, exit: code ?? 1 });
     });
-    child.on("error", () => {
-      resolve({ stdout, exit: 1 });
+    child.on("error", (err: Error) => {
+      resolve({ stdout: "", exit: 127, error: `claude launch failed: ${err.message}` });
     });
   });
 }
@@ -140,7 +147,7 @@ export async function runAgent(
   const checkCommitted = deps?.checkCommitted ?? defaultCheckCommitted;
 
   const t0 = performance.now();
-  const { stdout, exit } = await runClaude({
+  const { stdout, exit, error: launchError } = await runClaude({
     cwd: workspace.dir,
     prompt: spec.prompt,
     model: budget.model,
@@ -182,6 +189,7 @@ export async function runAgent(
     wallMs,
     exit,
     didNotComplete,
+    ...(launchError !== undefined ? { error: launchError } : {}),
   };
 }
 

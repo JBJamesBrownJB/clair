@@ -159,10 +159,14 @@ describe("runAgent", () => {
 
   it("passes correct cwd, prompt, model, and maxTurns to runClaude", async () => {
     const calls: Array<{ cwd: string; prompt: string; model: string; maxTurns: number }> = [];
+    let checkCommittedWorkspace: Workspace | undefined;
 
     await runAgent(W1, SP1, BUDGET, {
       runClaude: fakeRun(usageJson(), 0, (args) => calls.push(args)),
-      checkCommitted: fakeCommitted(true),
+      checkCommitted: async (ws) => {
+        checkCommittedWorkspace = ws;
+        return true;
+      },
     });
 
     expect(calls).toHaveLength(1);
@@ -170,6 +174,23 @@ describe("runAgent", () => {
     expect(calls[0].prompt).toBe(SP1.prompt);
     expect(calls[0].model).toBe(BUDGET.model);
     expect(calls[0].maxTurns).toBe(BUDGET.max_turns_per_agent);
+    // Fix #4: workspace passed to checkCommitted is the slice's own workspace (no cross-contamination)
+    expect(checkCommittedWorkspace).toBe(W1);
+  });
+
+  it("launch failure: didNotComplete:true and non-empty error when runClaude returns exit:127 with error", async () => {
+    const result = await runAgent(W1, SP1, BUDGET, {
+      runClaude: async () => ({
+        stdout: "",
+        exit: 127,
+        error: "claude launch failed: spawn claude ENOENT",
+      }),
+      checkCommitted: fakeCommitted(false),
+    });
+
+    expect(result.didNotComplete).toBe(true);
+    expect(typeof result.error).toBe("string");
+    expect(result.error).toContain("launch failed");
   });
 });
 
