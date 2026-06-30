@@ -28,11 +28,13 @@ import type { Budget } from "./agent.js";
 import { mergeSlices } from "./merge.js";
 import { runGate } from "./gate.js";
 import { writeReport } from "./report.js";
+import { runResolver } from "./resolve.js";
 import type { RunConfig, SliceSpec } from "./types.js";
 import type { AgentResult } from "./agent.js";
 import type { MergeResult } from "./merge.js";
 import type { GateResult } from "./gate.js";
 import type { RunReport } from "./report.js";
+import type { ResolutionResult } from "./resolve.js";
 
 // ---------------------------------------------------------------------------
 // Resolve paths
@@ -66,7 +68,7 @@ export type BenchmarkResult =
   | {
       dryRun: false;
       outcome: "all-pass" | "fail";
-      report: { json: RunReport; summary: string; path: string };
+      report: { json: RunReport; summary: string; path: string; resultPath: string | null };
     };
 
 /**
@@ -84,8 +86,15 @@ export interface RunBenchmarkDeps {
   ) => Promise<AgentResult[]>;
   mergeSlices?: (
     run: RunConfig,
-    slices: Array<{ sliceId: string; branch: string }>
+    slices: Array<{ sliceId: string; branch: string }>,
+    opts?: { onConflict?: "abort" | "leave"; rootDir?: string }
   ) => Promise<MergeResult>;
+  runResolver?: (
+    run: RunConfig,
+    sliceBranches: string[],
+    integration: Workspace,
+    budget: Budget
+  ) => Promise<ResolutionResult>;
   runGate?: (integration: Workspace, run: RunConfig) => Promise<GateResult>;
   writeReport?: (
     runId: string,
@@ -94,9 +103,10 @@ export interface RunBenchmarkDeps {
       merge: MergeResult;
       gate: GateResult;
       wallMs: number;
+      resolution?: ResolutionResult;
     },
-    opts?: { outDir?: string }
-  ) => { json: RunReport; summary: string; path: string };
+    opts?: { outDir?: string; resultsDir?: string; stamp?: string }
+  ) => { json: RunReport; summary: string; path: string; resultPath: string | null };
   teardown?: (workspaces: Workspace[]) => Promise<void>;
 }
 
@@ -122,6 +132,7 @@ export async function runBenchmark(
   const _provision = deps.provision ?? provision;
   const _runAgents = deps.runAgents ?? runAgents;
   const _mergeSlices = deps.mergeSlices ?? mergeSlices;
+  const _runResolver = deps.runResolver ?? runResolver;
   const _runGate = deps.runGate ?? runGate;
   const _writeReport = deps.writeReport ?? writeReport;
   const _teardown = deps.teardown ?? teardown;
@@ -165,6 +176,20 @@ export async function runBenchmark(
   let workspaces: Workspace[] = [];
   let merge: MergeResult | undefined;
 
+  // Determine integration mode — only 'resolver' activates the resolver path.
+  const integrationMode = run.integration?.mode;
+  const isResolverMode = integrationMode === "resolver";
+
+  // Build resolver budget from YAML's integration.resolver_budget, falling back
+  // to the run's main budget if resolver_budget is absent.
+  const resolverBudget: Budget = {
+    max_tokens_per_agent:
+      run.integration?.resolver_budget?.max_tokens ?? run.budget.max_tokens_per_agent,
+    max_turns_per_agent:
+      run.integration?.resolver_budget?.max_turns ?? run.budget.max_turns_per_agent,
+    model: run.model,
+  };
+
   try {
     // 1. Provision one worktree per slice
     workspaces = await _provision(run, { install: true });
@@ -177,20 +202,42 @@ export async function runBenchmark(
     });
     const agents = await _runAgents(items, budget);
 
-    // 3. Merge all slice branches into an integration branch
-    //    MUST be before teardown (teardown deletes the slice branches)
+    // 3. Merge all slice branches into an integration branch.
+    //    MUST be before teardown (teardown deletes the slice branches).
+    //    Resolver mode: leave conflict markers for the resolver agent.
+    //    Mechanical mode (default): abort on conflict (clean worktree).
     const sliceBranches = workspaces.map((w) => ({
       sliceId: w.sliceId,
       branch: w.branch,
     }));
-    merge = await _mergeSlices(run, sliceBranches);
+    merge = await _mergeSlices(
+      run,
+      sliceBranches,
+      isResolverMode ? { onConflict: "leave" } : undefined
+    );
+
+    // 3b. [Resolver mode only] Run a headless resolver agent against the
+    //     conflicted integration worktree, then hand off to the gate.
+    let resolution: ResolutionResult | undefined;
+    if (isResolverMode) {
+      const branchNames = sliceBranches.map((s) => s.branch);
+      resolution = await _runResolver(run, branchNames, merge.integration, resolverBudget);
+    }
 
     // 4. Run the held-out gate against the integration worktree
     const gate = await _runGate(merge.integration, run);
 
-    // 5. Assemble + write the report (sync — does its own console.log)
+    // 5. Assemble + write the report (sync — does its own console.log).
+    //    Pass resultsDir so each real run is persisted in benchmark/results/.
+    //    Tests inject a fake writeReport, so the real Date call here is fine.
     const wallMs = performance.now() - wallStart;
-    const reportResult = _writeReport(run.id, { agents, merge, gate, wallMs });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const resultsDir = path.join(REPO_ROOT, "benchmark/results");
+    const reportResult = _writeReport(
+      run.id,
+      { agents, merge, gate, wallMs, ...(resolution !== undefined ? { resolution } : {}) },
+      { resultsDir, stamp }
+    );
 
     return {
       dryRun: false,

@@ -1,0 +1,53 @@
+id: standard-L1-armA-resolver
+description: >-
+  Resolver-mode variant of standard-L1 — used only as a test fixture for the
+  resolver pipeline in benchmark/runner/__tests__/run.test.ts.
+status: ready
+
+base:
+  branch: arena/base
+  sha: 1a5cd3d            # arena-base-v1
+
+gate:
+  branch: arena/reference
+  sha: bfa46b5            # arena-reference-v1
+  command: pnpm test:gate
+
+arm: A                    # disciplined isolation (clair plugin disabled)
+topology: local-worktrees
+level: L1
+
+slices:
+  - { id: S1, title: "Authz hardening + role-management",   backlog: [F-08, F-10, F-09] }
+  - { id: S2, title: "Saved views: multi-field search + filter", backlog: [F-06, F-07, F-12, F-13, F-15] }
+  - { id: S3, title: "Export (CSV + JSON)",                 backlog: [F-17] }
+agents: 3
+
+information_asymmetry: true
+
+model: claude-opus-4-8
+temperature: 0
+
+budget:
+  max_tokens_per_agent: 1500000
+  max_turns_per_agent: 120
+
+integration:
+  mode: resolver
+  resolver: none
+  resolver_budget:
+    max_tokens: 100000
+    max_turns: 20
+
+trials:
+  k: 5
+
+metrics:
+  - all-pass-rate
+  - semantic-conflict-rate
+  - tsc-clean
+  - build-clean
+  - rcc
+  - textual-conflicts
+  - rework-tokens
+  - wall-clock

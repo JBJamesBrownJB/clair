@@ -32,6 +32,10 @@ export interface RunConfig {
   integration: {
     mode: string;
     resolver: string;
+    resolver_budget?: {
+      max_tokens: number;
+      max_turns: number;
+    };
   };
   trials: {
     k: number;

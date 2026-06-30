@@ -15,6 +15,7 @@ import type { AgentResult } from "../agent.js";
 import type { MergeResult } from "../merge.js";
 import type { GateResult } from "../gate.js";
 import type { RunReport } from "../report.js";
+import type { ResolutionResult } from "../resolve.js";
 
 // ---------------------------------------------------------------------------
 // Path setup
@@ -24,6 +25,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../../..");
 const runPath = path.join(repoRoot, "benchmark/runs/standard-L1.run.yaml");
+const resolverRunPath = path.join(repoRoot, "benchmark/runs/standard-L1-resolver.run.yaml");
 
 // ---------------------------------------------------------------------------
 // Fixture data — never touch real git or the filesystem
@@ -246,5 +248,167 @@ describe("runBenchmark — teardown error masked by finally", () => {
       .rejects.toThrow("GATE_BOOM");
 
     expect(teardownSpy).toHaveBeenCalledOnce();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Resolver-mode fixtures
+// ---------------------------------------------------------------------------
+
+const fakeResolution: ResolutionResult = {
+  ran: true,
+  tokens: 500,
+  turns: 5,
+  wallMs: 3000,
+  reachedGreen: true,
+  didNotResolve: false,
+};
+
+const fakeReportResultWithResolution = {
+  ...fakeReportResult,
+  resultPath: "/fake/results/run.json",
+};
+
+// ---------------------------------------------------------------------------
+// Test 5: Resolver mode — call order and arg assertions
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — resolver mode", () => {
+  it("call order is provision → runAgents → mergeSlices → runResolver → runGate → writeReport → teardown; mergeSlices called with onConflict:'leave'; runResolver receives merge.integration + branch names + budget; writeReport receives resolution", async () => {
+    const callOrder: string[] = [];
+
+    const mergeSlicesSpy = vi.fn(async () => { callOrder.push("mergeSlices"); return fakeMerge; });
+    const runResolverSpy = vi.fn(async () => { callOrder.push("runResolver"); return fakeResolution; });
+    const writeReportSpy = vi.fn(() => { callOrder.push("writeReport"); return fakeReportResultWithResolution; });
+
+    const deps = {
+      provision: vi.fn(async () => { callOrder.push("provision"); return fakeWorkspaces; }),
+      runAgents: vi.fn(async () => { callOrder.push("runAgents"); return fakeAgents; }),
+      mergeSlices: mergeSlicesSpy,
+      runResolver: runResolverSpy,
+      runGate: vi.fn(async () => { callOrder.push("runGate"); return fakeGate; }),
+      writeReport: writeReportSpy,
+      teardown: vi.fn(async () => { callOrder.push("teardown"); }),
+    } as unknown as RunBenchmarkDeps;
+
+    await runBenchmark(resolverRunPath, { dryRun: false }, deps);
+
+    // Exact call order including runResolver between mergeSlices and runGate
+    expect(callOrder).toEqual([
+      "provision",
+      "runAgents",
+      "mergeSlices",
+      "runResolver",
+      "runGate",
+      "writeReport",
+      "teardown",
+    ]);
+
+    // mergeSlices must have been called with onConflict:'leave'
+    const mergeOpts = mergeSlicesSpy.mock.calls[0]![2] as { onConflict?: string } | undefined;
+    expect(mergeOpts?.onConflict).toBe("leave");
+
+    // runResolver received (run, sliceBranchNames[], merge.integration, budget)
+    const resolverArgs = runResolverSpy.mock.calls[0]!;
+    const resolverBranchNames = resolverArgs[1] as string[];
+    const resolverIntegration = resolverArgs[2] as Workspace;
+    const resolverBudget = resolverArgs[3] as Record<string, unknown>;
+
+    expect(resolverIntegration).toEqual(integrationWs);
+    expect(resolverBranchNames).toEqual(expect.arrayContaining([
+      "run/test/S1", "run/test/S2", "run/test/S3",
+    ]));
+    expect(resolverBranchNames).toHaveLength(3);
+    // Budget mapped from resolver_budget in YAML: max_tokens:100000, max_turns:20, model:claude-opus-4-8
+    expect(resolverBudget).toMatchObject({
+      max_tokens_per_agent: 100000,
+      max_turns_per_agent: 20,
+      model: "claude-opus-4-8",
+    });
+
+    // writeReport must have received the resolution result in parts
+    const reportParts = writeReportSpy.mock.calls[0]![1] as { resolution?: ResolutionResult };
+    expect(reportParts.resolution).toEqual(fakeResolution);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 6: Mechanical mode — runResolver NOT called; mergeSlices NOT 'leave'
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — mechanical mode (default)", () => {
+  it("runResolver is NOT called; mergeSlices is NOT called with onConflict:'leave'", async () => {
+    const runResolverSpy = vi.fn(async () => fakeResolution);
+    const mergeSlicesSpy = vi.fn(async () => fakeMerge);
+
+    const deps = {
+      provision: vi.fn(async () => fakeWorkspaces),
+      runAgents: vi.fn(async () => fakeAgents),
+      mergeSlices: mergeSlicesSpy,
+      runResolver: runResolverSpy,
+      runGate: vi.fn(async () => fakeGate),
+      writeReport: vi.fn(() => fakeReportResult),
+      teardown: vi.fn(async () => {}),
+    } as unknown as RunBenchmarkDeps;
+
+    // standard-L1.run.yaml has integration.mode: mechanical-merge (not 'resolver')
+    await runBenchmark(runPath, { dryRun: false }, deps);
+
+    expect(runResolverSpy).not.toHaveBeenCalled();
+
+    const mergeOpts = mergeSlicesSpy.mock.calls[0]![2] as { onConflict?: string } | undefined;
+    expect(mergeOpts?.onConflict).not.toBe("leave");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 7: Resolver failure still calls teardown
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — resolver failure still calls teardown", () => {
+  it("a throw in runResolver does not prevent teardown from running", async () => {
+    const teardownSpy = vi.fn(async () => {});
+
+    const deps = {
+      provision: vi.fn(async () => fakeWorkspaces),
+      runAgents: vi.fn(async () => fakeAgents),
+      mergeSlices: vi.fn(async () => fakeMerge),
+      runResolver: vi.fn(async () => { throw new Error("resolver blew up"); }),
+      runGate: vi.fn(async () => fakeGate),
+      writeReport: vi.fn(() => fakeReportResult),
+      teardown: teardownSpy,
+    } as unknown as RunBenchmarkDeps;
+
+    await expect(runBenchmark(resolverRunPath, { dryRun: false }, deps))
+      .rejects.toThrow("resolver blew up");
+
+    expect(teardownSpy).toHaveBeenCalledOnce();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 8: Results wiring — writeReport called with opts.resultsDir set
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — results wiring", () => {
+  it("writeReport is called with opts.resultsDir set (so kept-file would be written) and a stamp string", async () => {
+    const writeReportSpy = vi.fn(() => fakeReportResult);
+
+    const deps = {
+      provision: vi.fn(async () => fakeWorkspaces),
+      runAgents: vi.fn(async () => fakeAgents),
+      mergeSlices: vi.fn(async () => fakeMerge),
+      runGate: vi.fn(async () => fakeGate),
+      writeReport: writeReportSpy,
+      teardown: vi.fn(async () => {}),
+    } as unknown as RunBenchmarkDeps;
+
+    await runBenchmark(runPath, { dryRun: false }, deps);
+
+    const opts = writeReportSpy.mock.calls[0]![2] as { resultsDir?: string; stamp?: string } | undefined;
+    expect(opts?.resultsDir).toBeDefined();
+    expect(typeof opts?.resultsDir).toBe("string");
+    expect(opts?.stamp).toBeDefined();
+    expect(typeof opts?.stamp).toBe("string");
   });
 });
