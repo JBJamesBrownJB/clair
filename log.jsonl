@@ -53,3 +53,4 @@
 {"id":"019f18a3-1f62-7412-b920-b5d661c091ab","author":"JB","kind":"summary","text":"Want me to add the resolver agent as a follow-up task to the runner plan — or run the mechanical L1 first and see if there's even a collision to resolve?","ts":"2026-06-30T13:06:11Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
 {"id":"019f18af-683a-74c0-8fe6-f4b2b856fb99","author":"JB","kind":"prompt","text":"ok, run it then","ts":"2026-06-30T13:19:36Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
 {"id":"019f18b0-99c6-79f1-9d4d-07ad01dc7631","author":"JB","kind":"summary","text":"Nothing for you to do — sit tight and I'll report back.","ts":"2026-06-30T13:20:54Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
+{"id":"019f18b3-3884-72c2-a283-f65e9467f079","author":"JB","kind":"prompt","text":"where are the worktrees?","ts":"2026-06-30T13:23:45Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
