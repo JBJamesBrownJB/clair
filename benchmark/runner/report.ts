@@ -12,6 +12,7 @@ import type { AgentResult } from "./agent.js";
 import type { MergeResult } from "./merge.js";
 import type { GateResult } from "./gate.js";
 import type { ResolutionResult } from "./resolve.js";
+import type { PrQueueResult } from "./prQueue.js";
 
 // ---------------------------------------------------------------------------
 // Resolve __dirname in ESM
@@ -35,6 +36,13 @@ export interface PerSliceReport {
   merged: boolean;
   conflictedFiles: string[];
   gate: "pass" | "fail";
+}
+
+/** Cost breakdown present only when reachedSuccess is true. */
+export interface CostToSuccess {
+  total: { tokens: number; turns: number; wallMs: number };
+  build: { tokens: number; turns: number; wallMs: number };
+  integration: { tokens: number; turns: number; wallMs: number };
 }
 
 export interface RunReport {
@@ -63,6 +71,20 @@ export interface RunReport {
   resolution?: ResolutionResult;
   /** Convenience summary of resolver cost; absent for mechanical runs. */
   resolutionCost?: { tokens: number; turns: number; wallMs: number };
+  /** PR-queue outcomes — present when a PR-queue run was performed. */
+  prQueue?: {
+    prs: PrQueueResult["prs"];
+    reachedSuccess: boolean;
+    rounds: number;
+    envError: boolean;
+    didNotComplete: boolean;
+  };
+  /** Cost-to-success breakdown — present only when prQueue.reachedSuccess is true. */
+  costToSuccess?: CostToSuccess;
+  /** Per-slice test-file discipline counters — passed in by the wiring layer. */
+  testDiscipline?: Record<string, { testFilesAdded: number }>;
+  /** Branches whose PR was flagged as test-tampered — absent when none. */
+  tampering?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +103,8 @@ export function writeReport(
     gate: GateResult;
     wallMs: number;
     resolution?: ResolutionResult;
+    prQueue?: PrQueueResult;
+    testDiscipline?: Record<string, { testFilesAdded: number }>;
   },
   opts?: { outDir?: string; resultsDir?: string; stamp?: string }
 ): { json: RunReport; summary: string; path: string; resultPath: string | null } {
@@ -149,6 +173,50 @@ export function writeReport(
       : "fail";
 
   // -------------------------------------------------------------------------
+  // PR-queue derived fields (only when prQueue was provided)
+  // -------------------------------------------------------------------------
+  let prQueueField: RunReport["prQueue"] | undefined;
+  let costToSuccess: RunReport["costToSuccess"] | undefined;
+  let tampering: string[] | undefined;
+
+  if (parts.prQueue !== undefined) {
+    const pq = parts.prQueue;
+
+    prQueueField = {
+      prs: pq.prs,
+      reachedSuccess: pq.reachedSuccess,
+      rounds: pq.rounds,
+      envError: pq.envError,
+      didNotComplete: pq.didNotComplete,
+    };
+
+    // Tampering: branches whose PR entry has tampered=true
+    const tamperedBranches = pq.prs
+      .filter((p) => p.tampered === true)
+      .map((p) => p.branch);
+    if (tamperedBranches.length > 0) {
+      tampering = tamperedBranches;
+    }
+
+    // costToSuccess only when the run succeeded
+    if (pq.reachedSuccess) {
+      const buildTokens = parts.agents.reduce((s, a) => s + a.tokens, 0);
+      const buildTurns = parts.agents.reduce((s, a) => s + a.turns, 0);
+      const buildWallMs = parts.agents.reduce((s, a) => s + a.wallMs, 0);
+      const ic = pq.integrationCost;
+      costToSuccess = {
+        build: { tokens: buildTokens, turns: buildTurns, wallMs: buildWallMs },
+        integration: { tokens: ic.tokens, turns: ic.turns, wallMs: ic.wallMs },
+        total: {
+          tokens: buildTokens + ic.tokens,
+          turns: buildTurns + ic.turns,
+          wallMs: buildWallMs + ic.wallMs,
+        },
+      };
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Assemble report
   // -------------------------------------------------------------------------
   const json: RunReport = {
@@ -172,6 +240,10 @@ export function writeReport(
         wallMs: parts.resolution.wallMs,
       },
     }),
+    ...(prQueueField !== undefined && { prQueue: prQueueField }),
+    ...(costToSuccess !== undefined && { costToSuccess }),
+    ...(parts.testDiscipline !== undefined && { testDiscipline: parts.testDiscipline }),
+    ...(tampering !== undefined && { tampering }),
   };
 
   // -------------------------------------------------------------------------
@@ -193,6 +265,52 @@ export function writeReport(
     lines.push(
       `Resolution: reached-green=${r.reachedGreen}  cost=${r.tokens} tokens / ${r.turns} turns / ${r.wallMs}ms  (didNotResolve=${r.didNotResolve})`
     );
+  }
+
+  // PR-queue summary lines (only when prQueue was provided)
+  if (parts.prQueue !== undefined && prQueueField !== undefined) {
+    const pq = parts.prQueue;
+
+    // Per-PR outcome line
+    const prLine = pq.prs
+      .map((p) => {
+        if (p.outcome === "merged") return `${p.branch}: merged`;
+        const reasonPart = p.reason !== undefined ? ` (${p.reason})` : "";
+        return `${p.branch}: blocked${reasonPart}`;
+      })
+      .join(" · ");
+    lines.push(`PRs: ${prLine}`);
+
+    // Reached success or DID NOT COMPLETE
+    if (pq.reachedSuccess) {
+      lines.push("Reached success: true");
+    } else {
+      const blockedCount = pq.prs.filter((p) => p.outcome === "blocked").length;
+      lines.push(`DID NOT COMPLETE — ${blockedCount} PRs blocked`);
+    }
+
+    // Cost-to-success breakdown (only on success)
+    if (costToSuccess !== undefined) {
+      const cts = costToSuccess;
+      lines.push(
+        `Cost-to-success: total=${cts.total.tokens} tok / ${cts.total.turns} turns / ${cts.total.wallMs}ms` +
+        `  (build=${cts.build.tokens} tok / ${cts.build.turns} turns / ${cts.build.wallMs}ms` +
+        ` + integration=${cts.integration.tokens} tok / ${cts.integration.turns} turns / ${cts.integration.wallMs}ms)`
+      );
+    }
+
+    // Tampering warning
+    if (tampering !== undefined && tampering.length > 0) {
+      lines.push(`⚠ TEST TAMPERING: ${tampering.join(", ")}`);
+    }
+
+    // Test discipline
+    if (parts.testDiscipline !== undefined) {
+      const tdLine = Object.entries(parts.testDiscipline)
+        .map(([id, v]) => `${id}=${v.testFilesAdded}`)
+        .join(" ");
+      lines.push(`Test files added: ${tdLine}`);
+    }
   }
 
   const summary = lines.join("\n");

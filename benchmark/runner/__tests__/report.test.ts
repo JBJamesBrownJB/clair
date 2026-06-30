@@ -9,6 +9,7 @@ import type { AgentResult } from "../agent.js";
 import type { MergeResult } from "../merge.js";
 import type { GateResult } from "../gate.js";
 import type { ResolutionResult } from "../resolve.js";
+import type { PrQueueResult } from "../prQueue.js";
 
 // Real benchmark/results/ path — used to assert no test pollution.
 const REAL_RESULTS_DIR = path.resolve(
@@ -609,5 +610,279 @@ describe("writeReport — no resolution (mechanical run)", () => {
 
     // summary must have NO Resolution line
     expect(summary).not.toContain("Resolution:");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fixture factory for PrQueueResult
+// ---------------------------------------------------------------------------
+
+function makePrQueueSuccess(): PrQueueResult {
+  return {
+    prs: [
+      { branch: "S1", outcome: "merged" },
+      { branch: "S2", outcome: "merged" },
+      { branch: "S3", outcome: "merged" },
+    ],
+    reachedSuccess: true,
+    integrationCost: { tokens: 300, turns: 4, wallMs: 2000 },
+    rounds: 0,
+    envError: false,
+    didNotComplete: false,
+  };
+}
+
+function makePrQueueBlocked(): PrQueueResult {
+  return {
+    prs: [
+      { branch: "S1", outcome: "merged" },
+      { branch: "S2", outcome: "blocked", reason: "ci-fail" },
+      { branch: "S3", outcome: "merged" },
+    ],
+    reachedSuccess: false,
+    integrationCost: { tokens: 150, turns: 2, wallMs: 1000 },
+    rounds: 1,
+    envError: false,
+    didNotComplete: true,
+  };
+}
+
+function makePrQueueTampered(): PrQueueResult {
+  return {
+    prs: [
+      { branch: "S1", outcome: "blocked", reason: "test-tampering", tampered: true },
+      { branch: "S2", outcome: "merged" },
+    ],
+    reachedSuccess: false,
+    integrationCost: { tokens: 100, turns: 1, wallMs: 500 },
+    rounds: 1,
+    envError: false,
+    didNotComplete: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Task-4 Test 1: prQueue present, reachedSuccess=true — costToSuccess computed
+// ---------------------------------------------------------------------------
+
+describe("writeReport — prQueue present, reachedSuccess=true", () => {
+  it("costToSuccess present with correct build/integration/total sums; summary shows per-PR outcomes and cost breakdown", () => {
+    const outDir = makeTempDir();
+    const agents = makeAgents(); // tokens: 1000+2000+500=3500, turns: 3+5+2=10, wallMs: 4000+6000+3000=13000
+    const prQueue = makePrQueueSuccess(); // integrationCost: tokens=300, turns=4, wallMs=2000
+
+    const { json, summary } = writeReport(
+      "run-pq-success",
+      {
+        agents,
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 15000,
+        prQueue,
+      },
+      { outDir }
+    );
+
+    // costToSuccess present because reachedSuccess=true
+    expect(json.costToSuccess).toBeDefined();
+    const cts = json.costToSuccess!;
+
+    // build = sum of agent costs
+    expect(cts.build.tokens).toBe(3500);
+    expect(cts.build.turns).toBe(10);
+    expect(cts.build.wallMs).toBe(13000);
+
+    // integration = prQueue.integrationCost
+    expect(cts.integration.tokens).toBe(300);
+    expect(cts.integration.turns).toBe(4);
+    expect(cts.integration.wallMs).toBe(2000);
+
+    // total = build + integration
+    expect(cts.total.tokens).toBe(3800);
+    expect(cts.total.turns).toBe(14);
+    expect(cts.total.wallMs).toBe(15000);
+
+    // prQueue field is present in JSON
+    expect(json.prQueue).toBeDefined();
+    expect(json.prQueue!.reachedSuccess).toBe(true);
+    expect(json.prQueue!.prs).toHaveLength(3);
+
+    // summary shows per-PR outcomes
+    expect(summary).toContain("S1: merged");
+    expect(summary).toContain("S2: merged");
+    expect(summary).toContain("S3: merged");
+
+    // summary shows reached-success
+    expect(summary).toContain("Reached success: true");
+
+    // summary shows cost-to-success breakdown
+    expect(summary).toContain("Cost-to-success:");
+    expect(summary).toContain("total=3800");
+    expect(summary).toContain("build=3500");
+    expect(summary).toContain("integration=300");
+
+    // no DID NOT COMPLETE line
+    expect(summary).not.toContain("DID NOT COMPLETE");
+
+    // no tampering line
+    expect(summary).not.toContain("TEST TAMPERING");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task-4 Test 2: prQueue present, reachedSuccess=false (blocked PR)
+// ---------------------------------------------------------------------------
+
+describe("writeReport — prQueue present, reachedSuccess=false", () => {
+  it("costToSuccess absent; summary shows DID NOT COMPLETE and blocked PR", () => {
+    const outDir = makeTempDir();
+    const prQueue = makePrQueueBlocked();
+
+    const { json, summary } = writeReport(
+      "run-pq-blocked",
+      {
+        agents: makeAgents(),
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 12000,
+        prQueue,
+      },
+      { outDir }
+    );
+
+    // costToSuccess absent when reachedSuccess=false
+    expect(json.costToSuccess).toBeUndefined();
+
+    // prQueue still present in JSON
+    expect(json.prQueue).toBeDefined();
+    expect(json.prQueue!.reachedSuccess).toBe(false);
+    expect(json.prQueue!.didNotComplete).toBe(true);
+
+    // summary shows per-PR outcomes including blocked
+    expect(summary).toContain("S1: merged");
+    expect(summary).toContain("S2: blocked");
+    expect(summary).toContain("ci-fail");
+
+    // summary shows DID NOT COMPLETE
+    expect(summary).toContain("DID NOT COMPLETE");
+
+    // no cost-to-success breakdown when not succeeded
+    expect(summary).not.toContain("Cost-to-success:");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task-4 Test 3: PR with tampered=true
+// ---------------------------------------------------------------------------
+
+describe("writeReport — PR with tampered=true", () => {
+  it("tampering lists the branch; summary has ⚠ TEST TAMPERING line; reachedSuccess=false", () => {
+    const outDir = makeTempDir();
+    const prQueue = makePrQueueTampered();
+
+    const { json, summary } = writeReport(
+      "run-pq-tampered",
+      {
+        agents: makeAgents(),
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 10000,
+        prQueue,
+      },
+      { outDir }
+    );
+
+    // tampering field lists the tampered branch
+    expect(json.tampering).toBeDefined();
+    expect(json.tampering).toContain("S1");
+
+    // reachedSuccess=false → costToSuccess absent
+    expect(json.costToSuccess).toBeUndefined();
+
+    // summary has the TEST TAMPERING warning line
+    expect(summary).toContain("TEST TAMPERING");
+    expect(summary).toContain("S1");
+
+    // summary shows DID NOT COMPLETE
+    expect(summary).toContain("DID NOT COMPLETE");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task-4 Test 4: testDiscipline present
+// ---------------------------------------------------------------------------
+
+describe("writeReport — testDiscipline present", () => {
+  it("counts surface in JSON and summary", () => {
+    const outDir = makeTempDir();
+    const testDiscipline = {
+      S1: { testFilesAdded: 2 },
+      S2: { testFilesAdded: 0 },
+      S3: { testFilesAdded: 1 },
+    };
+
+    const { json, summary } = writeReport(
+      "run-pq-td",
+      {
+        agents: makeAgents(),
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 10000,
+        prQueue: makePrQueueSuccess(),
+        testDiscipline,
+      },
+      { outDir }
+    );
+
+    // JSON carries testDiscipline through
+    expect(json.testDiscipline).toEqual(testDiscipline);
+    expect(json.testDiscipline!["S1"]!.testFilesAdded).toBe(2);
+    expect(json.testDiscipline!["S2"]!.testFilesAdded).toBe(0);
+
+    // summary shows Test files added line
+    expect(summary).toContain("Test files added:");
+    expect(summary).toContain("S1=2");
+    expect(summary).toContain("S2=0");
+    expect(summary).toContain("S3=1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task-4 Test 5: NO prQueue (mechanical run) — report unchanged
+// ---------------------------------------------------------------------------
+
+describe("writeReport — no prQueue (mechanical run)", () => {
+  it("prQueue, costToSuccess, testDiscipline, tampering all absent; summary has no pr-queue/cost lines", () => {
+    const outDir = makeTempDir();
+
+    const { json, summary } = writeReport(
+      "run-mech-pq",
+      {
+        agents: makeAgents(),
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 10000,
+        // no prQueue, no testDiscipline
+      },
+      { outDir }
+    );
+
+    // New fields absent
+    expect(json.prQueue).toBeUndefined();
+    expect(json.costToSuccess).toBeUndefined();
+    expect(json.testDiscipline).toBeUndefined();
+    expect(json.tampering).toBeUndefined();
+
+    // Summary has none of the new pr-queue lines
+    expect(summary).not.toContain("PRs:");
+    expect(summary).not.toContain("Reached success:");
+    expect(summary).not.toContain("Cost-to-success:");
+    expect(summary).not.toContain("TEST TAMPERING");
+    expect(summary).not.toContain("Test files added:");
+    expect(summary).not.toContain("DID NOT COMPLETE");
+
+    // Existing summary content still present
+    expect(summary).toContain("all-pass");
+    expect(summary).toContain("tokens=3500");
   });
 });
