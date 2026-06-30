@@ -202,7 +202,8 @@ export function writeReport(
     if (pq.reachedSuccess) {
       const buildTokens = parts.agents.reduce((s, a) => s + a.tokens, 0);
       const buildTurns = parts.agents.reduce((s, a) => s + a.turns, 0);
-      const buildWallMs = parts.agents.reduce((s, a) => s + a.wallMs, 0);
+      // build agents run concurrently → wall time is the max, not the sum (tokens/turns are summed)
+      const buildWallMs = parts.agents.length > 0 ? Math.max(...parts.agents.map((a) => a.wallMs)) : 0;
       const ic = pq.integrationCost;
       costToSuccess = {
         build: { tokens: buildTokens, turns: buildTurns, wallMs: buildWallMs },
@@ -286,7 +287,7 @@ export function writeReport(
       lines.push("Reached success: true");
     } else {
       const blockedCount = pq.prs.filter((p) => p.outcome === "blocked").length;
-      lines.push(`DID NOT COMPLETE — ${blockedCount} PRs blocked`);
+      lines.push(`DID NOT COMPLETE — ${blockedCount} ${blockedCount === 1 ? "PR" : "PRs"} blocked`);
     }
 
     // Cost-to-success breakdown (only on success)
@@ -300,7 +301,7 @@ export function writeReport(
     }
 
     // Tampering warning
-    if (tampering !== undefined && tampering.length > 0) {
+    if (tampering !== undefined) {
       lines.push(`⚠ TEST TAMPERING: ${tampering.join(", ")}`);
     }
 

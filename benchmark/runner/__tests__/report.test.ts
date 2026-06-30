@@ -687,10 +687,10 @@ describe("writeReport — prQueue present, reachedSuccess=true", () => {
     expect(json.costToSuccess).toBeDefined();
     const cts = json.costToSuccess!;
 
-    // build = sum of agent costs
+    // build = sum of agent tokens/turns; wallMs = max (agents run concurrently)
     expect(cts.build.tokens).toBe(3500);
     expect(cts.build.turns).toBe(10);
-    expect(cts.build.wallMs).toBe(13000);
+    expect(cts.build.wallMs).toBe(6000); // max(4000, 6000, 3000)
 
     // integration = prQueue.integrationCost
     expect(cts.integration.tokens).toBe(300);
@@ -700,7 +700,7 @@ describe("writeReport — prQueue present, reachedSuccess=true", () => {
     // total = build + integration
     expect(cts.total.tokens).toBe(3800);
     expect(cts.total.turns).toBe(14);
-    expect(cts.total.wallMs).toBe(15000);
+    expect(cts.total.wallMs).toBe(8000); // 6000 (build max) + 2000 (integration)
 
     // prQueue field is present in JSON
     expect(json.prQueue).toBeDefined();
