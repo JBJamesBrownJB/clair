@@ -28,7 +28,7 @@ function makeRun(overrides?: Partial<RunConfig>): RunConfig {
       { id: "S3", title: "Export", backlog: [] },
     ],
     agents: 3,
-    model: "claude-opus-4-8",
+    model: "test-model",
     budget: { max_tokens_per_agent: 50_000, max_turns_per_agent: 10 },
     integration: { mode: "merge", resolver: "none" },
     trials: { k: 1 },
@@ -88,6 +88,23 @@ const ALL_PASS_JSON = makeVitestJson([
   {
     ancestorTitles: ["slice 2 — search …"],
     title: "full-text search returns matching items",
+    status: "passed",
+  },
+  {
+    ancestorTitles: ["slice 3 — export …"],
+    title: "GET /api/items/export returns CSV",
+    status: "passed",
+  },
+]);
+
+/**
+ * Slice 2 has NO assertions at all; slices 1 and 3 each have one passing assertion.
+ * Used to verify that a slice with zero parsed assertions is NOT silently marked "pass".
+ */
+const SLICE2_MISSING_JSON = makeVitestJson([
+  {
+    ancestorTitles: ["slice 1 — authz …"],
+    title: "viewer-role receives 403 on POST /api/items",
     status: "passed",
   },
   {
@@ -296,6 +313,27 @@ describe("runGate", () => {
     expect(result.perSlice["S2"]).toBe("fail");
     expect(result.perSlice["S3"]).toBe("fail");
     expect(result.allPass).toBe(false);
+  });
+
+  // Fix 1: slice with zero parsed assertions must NOT default to 'pass'
+  it("vitest JSON has slice-1 and slice-3 assertions but none for slice-2 → perSlice.S2='fail', allPass:false, S1/S3 pass", async () => {
+    const run = makeRun();
+    const result = await runGate(INTEGRATION, run, {
+      runCmd: makeFakeRunCmd({ vitestOutput: SLICE2_MISSING_JSON }),
+    });
+
+    expect(result.perSlice["S1"]).toBe("pass");
+    expect(result.perSlice["S2"]).toBe("fail");
+    expect(result.perSlice["S3"]).toBe("pass");
+    expect(result.allPass).toBe(false);
+  });
+
+  // Fix 2: unknown level must throw instead of silently falling back to L1
+  it("level 'L99' → runGate rejects with an error message naming the level", async () => {
+    const run = makeRun({ level: "L99" });
+    await expect(
+      runGate(INTEGRATION, run, { runCmd: makeFakeRunCmd() })
+    ).rejects.toThrow("L99");
   });
 });
 

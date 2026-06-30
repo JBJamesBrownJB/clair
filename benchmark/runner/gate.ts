@@ -149,7 +149,12 @@ export async function runGate(
   await runCmd({ argv: ["pnpm", "install"], cwd: dir });
 
   // Step 3: run the gate test subset for this level with vitest JSON reporter.
-  const gateFiles = LEVEL_GATE_FILES[run.level] ?? LEVEL_GATE_FILES["L1"];
+  const gateFiles = LEVEL_GATE_FILES[run.level];
+  if (!gateFiles) {
+    throw new Error(
+      `Unknown level: "${run.level}" — add it to LEVEL_GATE_FILES`
+    );
+  }
   const { stdout: vitestStdout } = await runCmd({
     argv: [
       "pnpm", "vitest", "run",
@@ -181,12 +186,16 @@ export async function runGate(
   try {
     const parsed = JSON.parse(vitestStdout) as VitestJsonOutput;
     const failedOrdinals = new Set<number>();
+    const slicesSeen = new Set<number>();
 
     for (const suite of parsed.testResults ?? []) {
       for (const assertion of suite.assertionResults ?? []) {
-        if (assertion.status !== "passed") {
-          const ord = sliceOrdinal(assertion.ancestorTitles);
-          if (ord !== null) failedOrdinals.add(ord);
+        const ord = sliceOrdinal(assertion.ancestorTitles);
+        if (ord !== null) {
+          slicesSeen.add(ord);
+          if (assertion.status !== "passed") {
+            failedOrdinals.add(ord);
+          }
         }
       }
     }
@@ -194,6 +203,15 @@ export async function runGate(
     for (const ord of failedOrdinals) {
       const slice = run.slices[ord - 1];
       if (slice) perSlice[slice.id] = "fail";
+    }
+
+    // A run slice whose ordinal never appeared in the parsed JSON is untested —
+    // treat it as a failure (not a silent pass).
+    for (let i = 0; i < run.slices.length; i++) {
+      const ord = i + 1;
+      if (!slicesSeen.has(ord)) {
+        perSlice[run.slices[i].id] = "fail";
+      }
     }
   } catch {
     // Unparseable vitest output — safest to mark all slices failed.
