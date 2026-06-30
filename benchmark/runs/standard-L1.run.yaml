@@ -1,0 +1,50 @@
+id: standard-L1-armA
+description: >-
+  Standard level (3 vertical feature slices), disciplined-isolation control, local worktrees.
+  The first experiment / problem-in-vivo: do isolated agents collide in our arena at all?
+status: ready
+
+base:
+  branch: arena/base
+  sha: 1a5cd3d            # arena-base-v1
+
+gate:
+  branch: arena/reference
+  sha: bfa46b5            # arena-reference-v1
+  command: pnpm test:gate # + bash gate/run-gate.sh
+
+arm: A                    # disciplined isolation (clair plugin disabled)
+topology: local-worktrees # locked — Scenario 2
+level: L1
+
+slices:
+  - { id: S1, title: "Authz hardening + role-management",   backlog: [F-08, F-10, F-09] }
+  - { id: S2, title: "Saved views: multi-field search + filter", backlog: [F-06, F-07, F-12, F-13, F-15] }
+  - { id: S3, title: "Export (CSV + JSON)",                 backlog: [F-17] }
+agents: 3
+
+information_asymmetry: true
+
+model: claude-opus-4-8
+temperature: 0
+
+budget:
+  max_tokens_per_agent: 1500000   # starting point — calibrate from first dry runs
+  max_turns_per_agent: 120
+
+integration:
+  mode: mechanical-merge          # held fixed + identical across arms
+  resolver: none                  # first experiment: no resolver
+
+trials:
+  k: 5
+
+metrics:
+  - all-pass-rate
+  - semantic-conflict-rate
+  - tsc-clean
+  - build-clean
+  - rcc
+  - textual-conflicts             # captured, not a success signal
+  - rework-tokens
+  - wall-clock

@@ -1,0 +1,63 @@
+id: saturation-L3-armA
+description: >-
+  Saturation level: L2 plus a high-collision batch drawn from the backlog, to drive collision
+  density to the maximum. Disciplined-isolation control, local worktrees.
+status: future          # REQUIRES an extended arena/reference (>= v2) + gate covering S6-S14. Not runnable yet.
+
+base:
+  branch: arena/base
+  sha: 1a5cd3d            # arena-base-v1
+
+gate:
+  branch: arena/reference
+  sha: TBD-v2             # extended reference + gate not yet built — see ../levels.md (L3 is out of current scope)
+  command: pnpm test:gate
+
+arm: A                    # disciplined isolation (clair plugin disabled)
+topology: local-worktrees # locked — Scenario 2
+level: L3
+
+slices:
+  # L2 carryover
+  - { id: S1,  title: "Authz hardening + role-management",        backlog: [F-08, F-10, F-09] }
+  - { id: S2,  title: "Saved views: multi-field search + filter", backlog: [F-06, F-07, F-12, F-13, F-15] }
+  - { id: S3,  title: "Export (CSV + JSON)",                      backlog: [F-17] }
+  - { id: S4,  title: "Dependabot remediation batch",             backlog: [M-02, M-03, M-04] }
+  - { id: S5,  title: "Framework major upgrade",                  backlog: [M-10, M-05] }
+  # Saturation batch (configurable — recommended high-collision starter set)
+  - { id: S6,  title: "Controlled vocabularies (Category/Location/Unit dropdowns)", backlog: [M-01] }
+  - { id: S7,  title: "Soft-delete + restore",                    backlog: [F-01] }
+  - { id: S8,  title: "Item change-history / audit log",          backlog: [F-16] }
+  - { id: S9,  title: "Pagination + total count",                 backlog: [F-05] }
+  - { id: S10, title: "Item authorship (createdBy/updatedBy)",    backlog: [F-02] }
+  - { id: S11, title: "Checkouts enrichment + filtering",         backlog: [F-11] }
+  - { id: S12, title: "Shared ItemForm + create/edit parity",     backlog: [D-02] }
+  - { id: S13, title: "ApiResult<T> discriminated union",         backlog: [D-01] }
+  - { id: S14, title: "Inline form validation",                   backlog: [UX-01] }
+agents: 14
+
+information_asymmetry: true
+
+model: claude-opus-4-8
+temperature: 0
+
+budget:
+  max_tokens_per_agent: 1500000   # starting point — calibrate from first dry runs
+  max_turns_per_agent: 120
+
+integration:
+  mode: mechanical-merge
+  resolver: none
+
+trials:
+  k: 5
+
+metrics:
+  - all-pass-rate
+  - semantic-conflict-rate
+  - tsc-clean
+  - build-clean
+  - rcc
+  - rework-tokens
+  - cost-to-all-pass
+  - wall-clock
