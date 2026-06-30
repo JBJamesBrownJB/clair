@@ -392,3 +392,91 @@ describe("writeReport — summary content", () => {
     expect(summary).not.toContain("SEMANTIC CONFLICT");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Test 6: resultsDir / stamp — kept per-run record
+// ---------------------------------------------------------------------------
+
+describe("writeReport — kept results store", () => {
+  it("writes <resultsDir>/<runId>__<stamp>.json AND <outDir>/<runId>.json; returns resultPath", () => {
+    const outDir = makeTempDir();
+    const resultsDir = path.join(makeTempDir(), "results"); // does not exist yet
+
+    const { json, path: filePath, resultPath } = writeReport(
+      "run-kept-001",
+      {
+        agents: makeAgents(),
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 7000,
+      },
+      { outDir, resultsDir, stamp: "20260101-000000" }
+    );
+
+    // "latest" file still written
+    expect(fs.existsSync(filePath)).toBe(true);
+    expect(filePath).toBe(path.join(outDir, "run-kept-001.json"));
+
+    // Kept record written to resultsDir (created if absent)
+    const expectedResultPath = path.join(resultsDir, "run-kept-001__20260101-000000.json");
+    expect(resultPath).toBe(expectedResultPath);
+    expect(fs.existsSync(resultPath)).toBe(true);
+
+    // Content is the full report
+    const parsed: RunReport = JSON.parse(fs.readFileSync(resultPath, "utf-8"));
+    expect(parsed.runId).toBe("run-kept-001");
+    expect(parsed.outcome).toBe("all-pass");
+    expect(parsed.totals.tokens).toBe(json.totals.tokens);
+  });
+
+  it("two writes with different stamps produce two distinct result files (no overwrite)", () => {
+    const outDir = makeTempDir();
+    const resultsDir = path.join(makeTempDir(), "results");
+
+    const agents = makeAgents();
+    const merge = makeAllPassMerge();
+    const gate = makeAllPassGate();
+
+    const { resultPath: rp1 } = writeReport(
+      "run-kept-002",
+      { agents, merge, gate, wallMs: 1000 },
+      { outDir, resultsDir, stamp: "20260101-080000" }
+    );
+    const { resultPath: rp2 } = writeReport(
+      "run-kept-002",
+      { agents, merge, gate, wallMs: 2000 },
+      { outDir, resultsDir, stamp: "20260101-090000" }
+    );
+
+    // Paths are distinct
+    expect(rp1).not.toBe(rp2);
+
+    // Both files exist
+    expect(fs.existsSync(rp1)).toBe(true);
+    expect(fs.existsSync(rp2)).toBe(true);
+
+    // Paths contain the respective stamps
+    expect(rp1).toContain("20260101-080000");
+    expect(rp2).toContain("20260101-090000");
+  });
+
+  it("stamp defaults to 'latest' when omitted — result file is still written", () => {
+    const outDir = makeTempDir();
+    const resultsDir = path.join(makeTempDir(), "results");
+
+    const { resultPath } = writeReport(
+      "run-kept-003",
+      {
+        agents: makeAgents(),
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 5000,
+      },
+      { outDir, resultsDir }
+    );
+
+    // Without stamp, falls back to "latest"
+    expect(resultPath).toContain("run-kept-003__latest.json");
+    expect(fs.existsSync(resultPath)).toBe(true);
+  });
+});

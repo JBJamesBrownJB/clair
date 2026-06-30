@@ -21,6 +21,12 @@ const __dirname = path.dirname(__filename);
 /** Default output directory — git-ignored. */
 const DEFAULT_OUT_DIR = path.join(__dirname, "out");
 
+/**
+ * Default results directory — kept in git as experiment evidence.
+ * Resolves to benchmark/results/ from the repo root (one level above benchmark/runner/).
+ */
+const DEFAULT_RESULTS_DIR = path.join(__dirname, "..", "results");
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -76,9 +82,11 @@ export function writeReport(
     gate: GateResult;
     wallMs: number;
   },
-  opts?: { outDir?: string }
-): { json: RunReport; summary: string; path: string } {
+  opts?: { outDir?: string; resultsDir?: string; stamp?: string }
+): { json: RunReport; summary: string; path: string; resultPath: string } {
   const outDir = opts?.outDir ?? DEFAULT_OUT_DIR;
+  const resultsDir = opts?.resultsDir ?? DEFAULT_RESULTS_DIR;
+  const stamp = opts?.stamp ?? "latest";
 
   // -------------------------------------------------------------------------
   // Build per-slice join over the UNION of all three slice-id sets.
@@ -178,11 +186,17 @@ export function writeReport(
   console.log(summary);
 
   // -------------------------------------------------------------------------
-  // Write JSON file
+  // Write JSON files
   // -------------------------------------------------------------------------
+  // 1. "Latest" file — overwritten on each run (git-ignored out/ dir).
   fs.mkdirSync(outDir, { recursive: true });
   const filePath = path.join(outDir, `${runId}.json`);
   fs.writeFileSync(filePath, JSON.stringify(json, null, 2), "utf-8");
 
-  return { json, summary, path: filePath };
+  // 2. Kept per-run record — one file per run, never overwritten (benchmark/results/ in git).
+  fs.mkdirSync(resultsDir, { recursive: true });
+  const resultPath = path.join(resultsDir, `${runId}__${stamp}.json`);
+  fs.writeFileSync(resultPath, JSON.stringify(json, null, 2), "utf-8");
+
+  return { json, summary, path: filePath, resultPath };
 }
