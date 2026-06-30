@@ -1,5 +1,5 @@
 import path from "node:path";
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { RunConfig } from "./types.js";
 
@@ -12,6 +12,7 @@ export interface Workspace {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// NOTE: __dirname resolution assumes running from source via tsx; adjust paths if compiled to dist/.
 /** Absolute path to the repo root (two levels up from benchmark/runner/). */
 const REPO_ROOT = path.resolve(__dirname, "../..");
 
@@ -49,7 +50,7 @@ export async function provision(
     git(["worktree", "add", "-b", branch, dir, "arena/base"]);
 
     if (install) {
-      execSync("pnpm install", { cwd: dir, stdio: "inherit" });
+      execFileSync("pnpm", ["install"], { cwd: dir, stdio: "inherit" });
     }
 
     workspaces.push({ sliceId: slice.id, dir, branch });

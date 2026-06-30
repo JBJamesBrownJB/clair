@@ -42,7 +42,7 @@ describe("workspace provisioning", () => {
 
   afterEach(async () => {
     if (workspaces.length > 0) {
-      await teardown(workspaces).catch(() => {});
+      await teardown(workspaces).catch(e => console.error("[afterEach] teardown failed:", e));
       workspaces = [];
     }
   });
@@ -92,17 +92,22 @@ describe("workspace provisioning", () => {
   it("provision → teardown → provision with same runId is clean (idempotent)", async () => {
     const run = loadRun(runConfigPath);
 
-    const ws1 = await provision(run, { rootDir: tmpDir, install: false });
-    await teardown(ws1);
+    workspaces = await provision(run, { rootDir: tmpDir, install: false });
+    await teardown(workspaces);
+    workspaces = [];
 
     // Same runId → same branch names; teardown must have deleted branches for this to work
     const tmpDir2 = fs.mkdtempSync(path.join(os.tmpdir(), "clair-bench2-"));
-    workspaces = await provision(run, { rootDir: tmpDir2, install: false });
+    try {
+      workspaces = await provision(run, { rootDir: tmpDir2, install: false });
 
-    expect(workspaces).toHaveLength(3);
-    for (const w of workspaces) {
-      expect(w.branch).toBe(`run/${run.id}/${w.sliceId}`);
-      expect(fs.existsSync(w.dir)).toBe(true);
+      expect(workspaces).toHaveLength(3);
+      for (const w of workspaces) {
+        expect(w.branch).toBe(`run/${run.id}/${w.sliceId}`);
+        expect(fs.existsSync(w.dir)).toBe(true);
+      }
+    } finally {
+      fs.rmSync(tmpDir2, { recursive: true, force: true });
     }
   });
 
