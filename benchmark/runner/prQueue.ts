@@ -194,10 +194,8 @@ export async function runPrQueue(
   // Step 3: Process each branch as a PR (no branch is ever skipped)
   // -------------------------------------------------------------------------
   for (const branch of branches) {
-    // I-4: Snapshot assertion count BEFORE the merge (clean lastGreen tree).
-    // Conflict markers would inflate counts on a conflicted tree; snapshotting
-    // here ensures the tamper check compares against the last-known-good baseline.
-    const snapshotAssertions = await countAssertions(dir);
+    // I-2: Record assertion count BEFORE the merge (clean lastGreen tree).
+    const preMergeCount = await countAssertions(dir);
 
     // Step 3a: Attempt git merge --no-ff <branch>
     const { exit: mergeExit } = await runCmd({
@@ -214,8 +212,18 @@ export async function runPrQueue(
       cwd: dir,
     });
 
+    // I-2: Determine the tamper baseline.
+    // Clean merge: snapshot AFTER the merge — the incoming branch's own tests are
+    // now in the tree, so the fix agent must not drop below that higher count.
+    // Conflict: keep the pre-merge count — conflict markers inflate line counts and
+    // the merged tree is already broken, so pre-merge is the safer baseline.
+    let snapshotAssertions: number;
+
     if (mergeExit === 0) {
-      // Merge committed cleanly — check CI
+      // Merge committed cleanly — snapshot the post-merge count
+      snapshotAssertions = await countAssertions(dir);
+
+      // Check CI
       const ci = await runCIFn(dir, { runCmd });
       if (ci.green) {
         // PR LANDS on first try — advance lastGreen
@@ -228,6 +236,9 @@ export async function runPrQueue(
         continue;
       }
       // Semantic failure: merge committed but CI red → blocked
+    } else {
+      // Conflict: use pre-merge count as the tamper baseline
+      snapshotAssertions = preMergeCount;
     }
 
     // Blocked — either conflict (mergeExit !== 0) or semantic fail (mergeExit === 0, CI red)
@@ -299,9 +310,13 @@ export async function runPrQueue(
   // Steps 4-5: Final state computation
   // -------------------------------------------------------------------------
   const anyTampered = prs.some((p) => p.tampered === true);
-  const reachedSuccess = prs.every((p) => p.outcome === "merged") && !anyTampered;
-  // Minor: a run whose toolchain didn't set up can't be trusted as success
-  const didNotComplete = !reachedSuccess || envError;
+  // M-1: a run whose toolchain setup failed (envError) cannot be a trustworthy
+  // success — the typecheck / test results may have reflected a stale Prisma
+  // client or missing dependencies. Require !envError for reachedSuccess.
+  const reachedSuccess =
+    prs.every((p) => p.outcome === "merged") && !anyTampered && !envError;
+  // didNotComplete is the exact complement of reachedSuccess (no contradiction possible).
+  const didNotComplete = !reachedSuccess;
 
   return {
     prs,

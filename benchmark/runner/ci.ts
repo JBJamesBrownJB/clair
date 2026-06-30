@@ -63,6 +63,11 @@ export async function runCI(
 ): Promise<CIResult> {
   const runCmd = deps?.runCmd ?? defaultRunCmd;
 
+  // Step 0: regenerate the Prisma client so schema changes on the incoming branch
+  // are reflected before typecheck runs. Non-zero exit is tolerated — this is
+  // setup, not a CI gate. (Mirrors what gate.ts does before its own test run.)
+  await runCmd({ argv: ["pnpm", "db:generate"], cwd: dir });
+
   // Step 1: typecheck
   const { exit: tscExit } = await runCmd({
     argv: ["pnpm", "typecheck"],

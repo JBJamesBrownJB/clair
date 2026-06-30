@@ -752,6 +752,60 @@ describe("writeReport — testDiscipline present", () => {
 });
 
 // ---------------------------------------------------------------------------
+// M-2: shippedButWrong flag
+// ---------------------------------------------------------------------------
+
+describe("writeReport — shippedButWrong", () => {
+  it("prQueue.reachedSuccess=true + gate.allPass=false → shippedButWrong:true + summary line present", () => {
+    const outDir = makeTempDir();
+    const prQueue = makePrQueueSuccess(); // reachedSuccess=true
+    const gate: GateResult = {
+      perSlice: { S1: "pass", S2: "fail", S3: "pass" },
+      allPass: false, // gate failed despite visible CI passing
+      tscClean: true,
+      buildClean: true,
+    };
+
+    const { json, summary } = writeReport(
+      "run-sbw-true",
+      { agents: makeAgents(), merge: makeAllPassMerge(), gate, wallMs: 10000, prQueue },
+      { outDir }
+    );
+
+    expect(json.shippedButWrong).toBe(true);
+    expect(summary).toContain("SHIPPED BUT WRONG");
+    expect(summary).toContain("reached green but FAILED the hidden gate");
+  });
+
+  it("prQueue.reachedSuccess=true + gate.allPass=true → shippedButWrong:false, no summary line", () => {
+    const outDir = makeTempDir();
+    const prQueue = makePrQueueSuccess();
+    const gate = makeAllPassGate(); // allPass=true
+
+    const { json, summary } = writeReport(
+      "run-sbw-false",
+      { agents: makeAgents(), merge: makeAllPassMerge(), gate, wallMs: 10000, prQueue },
+      { outDir }
+    );
+
+    expect(json.shippedButWrong).toBe(false);
+    expect(summary).not.toContain("SHIPPED BUT WRONG");
+  });
+
+  it("no prQueue → shippedButWrong absent from JSON", () => {
+    const outDir = makeTempDir();
+
+    const { json } = writeReport(
+      "run-sbw-no-pq",
+      { agents: makeAgents(), merge: makeAllPassMerge(), gate: makeAllPassGate(), wallMs: 10000 },
+      { outDir }
+    );
+
+    expect(json.shippedButWrong).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Task-4 Test 5: NO prQueue (mechanical run) — report unchanged
 // ---------------------------------------------------------------------------
 

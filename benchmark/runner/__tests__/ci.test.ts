@@ -202,6 +202,24 @@ describe("runCI", () => {
     }
   });
 
+  // I-1: pnpm db:generate is called before pnpm typecheck (Prisma client regeneration)
+  it("pnpm db:generate is called before pnpm typecheck", async () => {
+    const calls: Array<{ argv: string[]; cwd: string }> = [];
+    const trackingRunCmd: RunCmdFn = async (cmd) => {
+      calls.push(cmd);
+      if (cmd.argv[1] === "test") return { stdout: ALL_PASS_JSON, exit: 0 };
+      return { stdout: "", exit: 0 };
+    };
+
+    await runCI("/my/project", { runCmd: trackingRunCmd });
+
+    const dbGenIdx = calls.findIndex((c) => c.argv[1] === "db:generate");
+    const typecheckIdx = calls.findIndex((c) => c.argv[1] === "typecheck");
+    expect(dbGenIdx).toBeGreaterThanOrEqual(0); // must be called
+    expect(typecheckIdx).toBeGreaterThanOrEqual(0);
+    expect(dbGenIdx).toBeLessThan(typecheckIdx); // must come BEFORE typecheck
+  });
+
   // pnpm test is called with --reporter=json
   it("pnpm test is invoked with --reporter=json", async () => {
     const calls: Array<{ argv: string[]; cwd: string }> = [];

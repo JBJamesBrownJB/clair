@@ -262,7 +262,7 @@ describe("runPrQueue", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Test 4: tamper — fix agent reaches CI green but drops assertion count
+  // Test 4: tamper — fix agent drops assertion count below post-merge snapshot
   // -------------------------------------------------------------------------
   it("fix agent drops assertion count below snapshot → PR blocked reason test-tampering, tampered:true, reachedSuccess:false", async () => {
     const branches = ["run/test/S1"];
@@ -274,8 +274,8 @@ describe("runPrQueue", () => {
       runAgent: makeQueuedRunAgent([
         { tokens: 500, turns: 2, wallMs: 100, didNotComplete: false },
       ]),
-      // I-4: snapshot taken BEFORE merge (clean lastGreen); post=8 → TAMPERED (8 < 10)
-      countAssertions: makeQueuedCountAssertions([10, 8]),
+      // I-2: pre-merge=10, post-clean-merge snapshot=15 (incoming tests), post-fix=8 → TAMPERED (8 < 15)
+      countAssertions: makeQueuedCountAssertions([10, 15, 8]),
     });
 
     expect(result.prs).toHaveLength(1);
@@ -285,9 +285,41 @@ describe("runPrQueue", () => {
     expect(result.prs[0].tampered).toBe(true);
     expect(result.reachedSuccess).toBe(false);
     expect(result.didNotComplete).toBe(true);
-    // I-2: fix agent launched = 1 round even on tamper
+    // fix agent launched = 1 round even on tamper
     expect(result.rounds).toBe(1);
-    // I-1: tampered agent's spend IS included in integrationCost (cost was really spent)
+    // tampered agent's spend IS included in integrationCost (cost was really spent)
+    expect(result.integrationCost).toEqual({ tokens: 500, turns: 2, wallMs: 100 });
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 4b (I-2): clean merge, fix reaches CI-green but drops below post-merge count
+  // -------------------------------------------------------------------------
+  it("I-2: clean merge whose fix agent reaches CI-green but drops assertion below post-merge count → tampered:true, PR blocked", async () => {
+    // Scenario: incoming branch has tests. After clean merge the count grows.
+    // Fix agent reaches green BUT deletes some of the incoming branch's own tests.
+    // With pre-merge snapshot this would be undetected; with post-merge snapshot it is caught.
+    const branches = ["run/test/S1"];
+
+    const result = await runPrQueue(makeRun(), branches, INTEGRATION, BUDGET, {
+      runCmd: makeFakeRunCmd({ headShas: ["sha-initial"] }),
+      // Merge clean → CI red (needs fix); GREEN_CI is second in queue but tamper is caught first
+      runCI: makeQueuedRunCI([RED_CI, GREEN_CI]),
+      runAgent: makeQueuedRunAgent([
+        { tokens: 500, turns: 2, wallMs: 100, didNotComplete: false },
+      ]),
+      // pre-merge=10, post-clean-merge=15 (incoming branch added tests), post-fix=12 (below 15 → tampered)
+      countAssertions: makeQueuedCountAssertions([10, 15, 12]),
+    });
+
+    expect(result.prs).toHaveLength(1);
+    expect(result.prs[0].branch).toBe(branches[0]);
+    expect(result.prs[0].outcome).toBe("blocked");
+    expect(result.prs[0].reason).toBe("test-tampering");
+    expect(result.prs[0].tampered).toBe(true);
+    expect(result.reachedSuccess).toBe(false);
+    expect(result.didNotComplete).toBe(true);
+    // cost still recorded even though tampered
+    expect(result.rounds).toBe(1);
     expect(result.integrationCost).toEqual({ tokens: 500, turns: 2, wallMs: 100 });
   });
 
@@ -319,6 +351,28 @@ describe("runPrQueue", () => {
     // S2 is blocked → reachedSuccess must be false
     expect(result.reachedSuccess).toBe(false);
     expect(result.didNotComplete).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test M-1: envError=true → reachedSuccess:false even when all PRs merged clean
+  // -------------------------------------------------------------------------
+  it("M-1: envError=true → reachedSuccess:false, didNotComplete:true even when all PRs merge green", async () => {
+    const branches = BRANCHES.slice(0, 2); // S1, S2
+
+    const result = await runPrQueue(makeRun(), branches, INTEGRATION, BUDGET, {
+      runCmd: makeFakeRunCmd({ envExit: 1 }), // env setup exits non-zero → envError
+      runCI: makeQueuedRunCI([GREEN_CI, GREEN_CI]),
+      runAgent: makeQueuedRunAgent([{ tokens: 0, turns: 0, wallMs: 0 }]),
+      countAssertions: makeQueuedCountAssertions([10]),
+    });
+
+    expect(result.envError).toBe(true);
+    // Even though all PRs merged green, envError makes this untrustworthy
+    expect(result.reachedSuccess).toBe(false);
+    expect(result.didNotComplete).toBe(true);
+    // Both PRs still recorded as merged
+    expect(result.prs[0].outcome).toBe("merged");
+    expect(result.prs[1].outcome).toBe("merged");
   });
 
   // -------------------------------------------------------------------------
