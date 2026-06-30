@@ -36,8 +36,7 @@ budget:
   max_turns_per_agent: 120
 
 integration:
-  mode: mechanical-merge          # held fixed + identical across arms
-  resolver: none                  # first experiment; add a fixed resolver later for cost-to-resolution
+  mode: mechanical                # held fixed + identical across arms
 
 trials:
   k: 5

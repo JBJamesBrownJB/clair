@@ -351,7 +351,7 @@ describe("runBenchmark — mechanical mode (default)", () => {
       teardown: vi.fn(async () => {}),
     } as unknown as RunBenchmarkDeps;
 
-    // standard-L1.run.yaml has integration.mode: mechanical-merge (not 'resolver')
+    // standard-L1.run.yaml has integration.mode: mechanical (not 'resolver')
     await runBenchmark(runPath, { dryRun: false }, deps);
 
     expect(runResolverSpy).not.toHaveBeenCalled();
@@ -488,11 +488,70 @@ describe("runBenchmark — dry-run mechanical config integration mode", () => {
     if (!result.dryRun) throw new Error("expected dryRun=true result");
     const { plan } = result;
 
-    // standard-L1.run.yaml uses mechanical-merge mode
+    // standard-L1.run.yaml uses mechanical mode
     expect(plan.integrationMode).toBe("mechanical");
     expect(plan.resolverBudget).toBeUndefined();
 
     // CRITICAL: none of the stage functions called in dry-run
+    expect(provisionSpy).not.toHaveBeenCalled();
+    expect(runAgentsSpy).not.toHaveBeenCalled();
+    expect(mergeSlicesSpy).not.toHaveBeenCalled();
+    expect(runResolverSpy).not.toHaveBeenCalled();
+    expect(runGateSpy).not.toHaveBeenCalled();
+    expect(writeReportSpy).not.toHaveBeenCalled();
+    expect(teardownSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 11: Dry-run resolver WITHOUT resolverBudget still prints/returns "resolver"
+// Regression test for the bug where the label was driven by (mode AND budget)
+// instead of mode alone, causing resolver-mode plans with no budget to print
+// "Integration: mechanical".
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — dry-run resolver mode WITHOUT resolverBudget", () => {
+  it("plan.integrationMode is 'resolver' with no resolverBudget; console.log says 'resolver' not 'mechanical'; NO stage fn called", async () => {
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const provisionSpy = vi.fn();
+    const runAgentsSpy = vi.fn();
+    const mergeSlicesSpy = vi.fn();
+    const runResolverSpy = vi.fn();
+    const runGateSpy = vi.fn();
+    const writeReportSpy = vi.fn();
+    const teardownSpy = vi.fn();
+
+    const deps = {
+      provision: provisionSpy,
+      runAgents: runAgentsSpy,
+      mergeSlices: mergeSlicesSpy,
+      runResolver: runResolverSpy,
+      runGate: runGateSpy,
+      writeReport: writeReportSpy,
+      teardown: teardownSpy,
+    } as unknown as RunBenchmarkDeps;
+
+    const fixtureRunPath = path.join(__dirname, "fixtures/resolver-nobudget.run.yaml");
+    const result = await runBenchmark(fixtureRunPath, { dryRun: true }, deps);
+
+    // Capture all console.log output then restore
+    const allOutput = consoleSpy.mock.calls.map((c) => String(c[0])).join("\n");
+    consoleSpy.mockRestore();
+
+    // Returned plan: mode is 'resolver' with no budget
+    expect(result.dryRun).toBe(true);
+    if (!result.dryRun) throw new Error("expected dryRun=true result");
+    const { plan } = result;
+
+    expect(plan.integrationMode).toBe("resolver");
+    expect(plan.resolverBudget).toBeUndefined();
+
+    // Printed output: must say 'resolver', must NOT say 'mechanical'
+    expect(allOutput).toContain("Integration: resolver");
+    expect(allOutput).not.toContain("Integration: mechanical");
+
+    // CRITICAL: no stage functions called in dry-run
     expect(provisionSpy).not.toHaveBeenCalled();
     expect(runAgentsSpy).not.toHaveBeenCalled();
     expect(mergeSlicesSpy).not.toHaveBeenCalled();

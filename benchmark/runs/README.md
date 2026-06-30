@@ -40,8 +40,7 @@ budget:                         # per-agent caps — a run that doesn't reach th
   max_turns_per_agent: 120
 
 integration:
-  mode: mechanical-merge        # held FIXED + identical across arms (clair acts at build time, not as resolver)
-  resolver: none                # first experiment: no resolver; a non-auto-merge or gate fail = did-not-complete
+  mode: mechanical              # held FIXED + identical across arms (clair acts at build time, not as resolver)
 
 trials:
   k: 5                          # K trials per (arm × level); report medians + spread, not single runs
@@ -73,7 +72,7 @@ metrics:                        # what to capture (headline first)
 
 The `integration.mode` field controls how slice branches are combined after agents finish.
 
-### `mechanical-merge` (baseline)
+### `mechanical` (baseline)
 Slice branches are merged in sequence with no conflict resolution. If any merge produces
 a textual conflict the merge is aborted and the trial is recorded as `did-not-complete`.
 This is the fixed, identical mechanism used across all arms — clair's value must appear as
@@ -97,9 +96,9 @@ cheaper.
 
 | File | Integration mode | Axis picks | Status |
 |------|-----------------|-----------|--------|
-| [`standard-L1.run.yaml`](standard-L1.run.yaml) | mechanical-merge | Arm A · worktrees · L1 | ready — first experiment |
+| [`standard-L1.run.yaml`](standard-L1.run.yaml) | mechanical | Arm A · worktrees · L1 | ready — first experiment |
 | [`standard-L1-resolver.run.yaml`](standard-L1-resolver.run.yaml) | resolver | Arm A · worktrees · L1 | ready — cost-to-resolution variant |
-| [`migration-L2.run.yaml`](migration-L2.run.yaml) | mechanical-merge | Arm A · worktrees · L2 | ready — the flagship |
-| [`saturation-L3.run.yaml`](saturation-L3.run.yaml) | mechanical-merge | Arm A · worktrees · L3 | future — needs extended reference |
+| [`migration-L2.run.yaml`](migration-L2.run.yaml) | mechanical | Arm A · worktrees · L2 | ready — the flagship |
+| [`saturation-L3.run.yaml`](saturation-L3.run.yaml) | mechanical | Arm A · worktrees · L3 | future — needs extended reference |
 
 To run Arm B, copy a ready config and change `arm:` (and `id:`); everything else stays identical.

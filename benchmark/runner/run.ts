@@ -291,13 +291,11 @@ function printDryRunPlan(plan: DryRunPlan): void {
   console.log(
     `Budget:   max_tokens=${plan.budget.max_tokens_per_agent}  max_turns=${plan.budget.max_turns_per_agent}`
   );
-  if (plan.integrationMode === "resolver" && plan.resolverBudget) {
-    console.log(
-      `Integration: resolver  (resolver budget: max_tokens=${plan.resolverBudget.max_tokens} max_turns=${plan.resolverBudget.max_turns})`
-    );
-  } else {
-    console.log(`Integration: mechanical`);
-  }
+  console.log(
+    plan.integrationMode === "resolver"
+      ? `Integration: resolver${plan.resolverBudget ? `  (resolver budget: max_tokens=${plan.resolverBudget.max_tokens} max_turns=${plan.resolverBudget.max_turns})` : ""}`
+      : `Integration: mechanical`
+  );
   console.log(`Slices:   ${plan.slices.length}\n`);
 
   for (const slice of plan.slices) {

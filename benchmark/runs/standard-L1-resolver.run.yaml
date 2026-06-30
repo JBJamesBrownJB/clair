@@ -35,10 +35,9 @@ budget:
 
 integration:
   mode: resolver
-  resolver: none
   resolver_budget:
     max_tokens: 2000000   # starting points — calibrate from the first real resolver run
-    max_turns: 200
+    max_turns: 200        # ditto — calibrate from the first real resolver run
 
 trials:
   k: 5

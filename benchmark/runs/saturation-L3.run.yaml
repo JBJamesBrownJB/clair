@@ -46,8 +46,7 @@ budget:
   max_turns_per_agent: 120
 
 integration:
-  mode: mechanical-merge
-  resolver: none
+  mode: mechanical
 
 trials:
   k: 5
