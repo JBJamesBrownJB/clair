@@ -1,0 +1,179 @@
+/**
+ * report.ts — assemble agent/merge/gate results into a metrics JSON + human summary.
+ *
+ * The headline instrument: `semanticConflict = mergedCleanly && !gate.allPass`
+ * — branches merged clean by git, but the app is broken/wrong.  This is the
+ * silent failure that clair exists to surface.
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import type { AgentResult } from "./agent.js";
+import type { MergeResult } from "./merge.js";
+import type { GateResult } from "./gate.js";
+
+// ---------------------------------------------------------------------------
+// Resolve __dirname in ESM
+// ---------------------------------------------------------------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/** Default output directory — git-ignored. */
+const DEFAULT_OUT_DIR = path.join(__dirname, "out");
+
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
+export interface PerSliceReport {
+  committed: boolean;
+  tokens: number;
+  turns: number;
+  didNotComplete: boolean;
+  error?: string;
+  merged: boolean;
+  conflictedFiles: string[];
+  gate: "pass" | "fail";
+}
+
+export interface RunReport {
+  runId: string;
+  wallMs: number;
+  perSlice: Record<string, PerSliceReport>;
+  textualConflicts: {
+    total: number;
+    perSlice: Record<string, string[]>;
+  };
+  gate: {
+    allPass: boolean;
+    tscClean: boolean;
+    buildClean: boolean;
+  };
+  totals: {
+    tokens: number;
+    turns: number;
+    agentsDidNotComplete: number;
+  };
+  /** True iff branches merged cleanly by git, but the gate subsequently failed.
+   *  The core signal: a silent semantic conflict that only the acceptance gate reveals. */
+  semanticConflict: boolean;
+  outcome: "all-pass" | "fail";
+}
+
+// ---------------------------------------------------------------------------
+// Core function
+// ---------------------------------------------------------------------------
+
+/**
+ * Assemble agent/merge/gate results into a RunReport, write it as JSON, and
+ * return the object + a human summary string (also printed to stdout).
+ */
+export function writeReport(
+  runId: string,
+  parts: {
+    agents: AgentResult[];
+    merge: MergeResult;
+    gate: GateResult;
+    wallMs: number;
+  },
+  opts?: { outDir?: string }
+): { json: RunReport; summary: string; path: string } {
+  const outDir = opts?.outDir ?? DEFAULT_OUT_DIR;
+
+  // -------------------------------------------------------------------------
+  // Build per-slice join (agents ∩ merge.results ∩ gate.perSlice by sliceId)
+  // -------------------------------------------------------------------------
+  const mergeMap = new Map(
+    parts.merge.results.map((r) => [r.sliceId, r])
+  );
+
+  const perSlice: Record<string, PerSliceReport> = {};
+  for (const agent of parts.agents) {
+    const mr = mergeMap.get(agent.sliceId);
+    const gateVerdict = parts.gate.perSlice[agent.sliceId] ?? "fail";
+    const entry: PerSliceReport = {
+      committed: agent.committed,
+      tokens: agent.tokens,
+      turns: agent.turns,
+      didNotComplete: agent.didNotComplete,
+      merged: mr?.merged ?? false,
+      conflictedFiles: mr?.conflictedFiles ?? [],
+      gate: gateVerdict,
+    };
+    if (agent.error !== undefined) {
+      entry.error = agent.error;
+    }
+    perSlice[agent.sliceId] = entry;
+  }
+
+  // -------------------------------------------------------------------------
+  // Textual conflicts
+  // -------------------------------------------------------------------------
+  const conflictPerSlice: Record<string, string[]> = {};
+  let conflictTotal = 0;
+  for (const r of parts.merge.results) {
+    conflictPerSlice[r.sliceId] = r.conflictedFiles;
+    conflictTotal += r.conflictedFiles.length;
+  }
+
+  // -------------------------------------------------------------------------
+  // Totals
+  // -------------------------------------------------------------------------
+  const tokens = parts.agents.reduce((sum, a) => sum + a.tokens, 0);
+  const turns = parts.agents.reduce((sum, a) => sum + a.turns, 0);
+  const agentsDidNotComplete = parts.agents.filter((a) => a.didNotComplete).length;
+
+  // -------------------------------------------------------------------------
+  // Headline flags
+  // -------------------------------------------------------------------------
+  const semanticConflict = parts.merge.mergedCleanly && !parts.gate.allPass;
+  const outcome: "all-pass" | "fail" =
+    parts.gate.allPass && parts.gate.tscClean && parts.gate.buildClean
+      ? "all-pass"
+      : "fail";
+
+  // -------------------------------------------------------------------------
+  // Assemble report
+  // -------------------------------------------------------------------------
+  const json: RunReport = {
+    runId,
+    wallMs: parts.wallMs,
+    perSlice,
+    textualConflicts: { total: conflictTotal, perSlice: conflictPerSlice },
+    gate: {
+      allPass: parts.gate.allPass,
+      tscClean: parts.gate.tscClean,
+      buildClean: parts.gate.buildClean,
+    },
+    totals: { tokens, turns, agentsDidNotComplete },
+    semanticConflict,
+    outcome,
+  };
+
+  // -------------------------------------------------------------------------
+  // Human summary
+  // -------------------------------------------------------------------------
+  const outcomeLabel = outcome === "all-pass" ? "all-pass ✓" : "FAIL ✗";
+  const lines: string[] = [
+    `Run:      ${runId}`,
+    `Outcome:  ${outcomeLabel}`,
+  ];
+  if (semanticConflict) {
+    lines.push("⚠ SEMANTIC CONFLICT: merged clean but gate failed");
+  }
+  lines.push(`Textual conflicts: ${conflictTotal}`);
+  lines.push(`Agents did-not-complete: ${agentsDidNotComplete}`);
+  lines.push(`Totals: tokens=${tokens}, turns=${turns}, wall=${Math.round(parts.wallMs)}ms`);
+
+  const summary = lines.join("\n");
+  console.log(summary);
+
+  // -------------------------------------------------------------------------
+  // Write JSON file
+  // -------------------------------------------------------------------------
+  fs.mkdirSync(outDir, { recursive: true });
+  const filePath = path.join(outDir, `${runId}.json`);
+  fs.writeFileSync(filePath, JSON.stringify(json, null, 2), "utf-8");
+
+  return { json, summary, path: filePath };
+}
