@@ -56,8 +56,12 @@ function createFixtureBranch(branchName: string, fileName: string, content: stri
       "-c", "user.name=Test",
       "commit", "-m", `fixture: ${branchName}`
     );
-    git("worktree", "remove", "--force", tempDir);
   } finally {
+    try {
+      git("worktree", "remove", "--force", tempDir);
+    } catch {
+      // worktree may not have been registered (e.g. worktree add failed) — ignore
+    }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
@@ -111,8 +115,9 @@ describe("mergeSlices", () => {
     const b1 = `fixture/${runId}/s1`;
     const b2 = `fixture/${runId}/s2`;
     createFixtureBranch(b1, "file-a.txt", "content from slice1\n");
+    fixtureBranches.push(b1);
     createFixtureBranch(b2, "file-b.txt", "content from slice2\n");
-    fixtureBranches.push(b1, b2);
+    fixtureBranches.push(b2);
 
     const result = await mergeSlices(
       run,
@@ -148,8 +153,9 @@ describe("mergeSlices", () => {
       const b2 = `fixture/${runId}/c2`;
       // Both branches add the same file with different content → add/add conflict
       createFixtureBranch(b1, "shared.txt", "version from slice1\n");
+      fixtureBranches.push(b1);
       createFixtureBranch(b2, "shared.txt", "version from slice2\n");
-      fixtureBranches.push(b1, b2);
+      fixtureBranches.push(b2);
 
       const result = await mergeSlices(
         run,
@@ -181,8 +187,9 @@ describe("mergeSlices", () => {
     const b2 = `fixture/${runId}/e2`;
     // Trigger a conflict so we verify "regardless"
     createFixtureBranch(b1, "exist-shared.txt", "version A\n");
+    fixtureBranches.push(b1);
     createFixtureBranch(b2, "exist-shared.txt", "version B\n");
-    fixtureBranches.push(b1, b2);
+    fixtureBranches.push(b2);
 
     const result = await mergeSlices(
       run,

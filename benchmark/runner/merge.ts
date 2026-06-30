@@ -70,8 +70,8 @@ export async function mergeSlices(
   const integrationDir = path.join(rootDir, `${run.id}-integration`);
   const integrationBranch = `run/${run.id}/integration`;
 
-  // Create the integration worktree on a new branch from arena/base.
-  git(["worktree", "add", "-b", integrationBranch, integrationDir, "arena/base"]);
+  // Create the integration worktree on a new branch from the configured base branch.
+  git(["worktree", "add", "-b", integrationBranch, integrationDir, run.base.branch]);
 
   const integration: Workspace = {
     sliceId: "integration",
@@ -101,8 +101,23 @@ export async function mergeSlices(
 
       try {
         gitIn(integrationDir, ["merge", "--abort"]);
-      } catch {
-        // Already clean — ignore.
+      } catch (abortErr) {
+        // Only suppress the benign "no merge in progress" case (MERGE_HEAD missing).
+        // Real failures (disk full, lock contention, etc.) are re-thrown.
+        const detail =
+          (abortErr instanceof Error ? abortErr.message : String(abortErr)) +
+          (typeof (abortErr as { stderr?: string }).stderr === "string"
+            ? (abortErr as { stderr: string }).stderr
+            : "");
+        if (
+          detail.includes("MERGE_HEAD missing") ||
+          detail.includes("no merge in progress")
+        ) {
+          // Already clean — benign.
+        } else {
+          console.error("[merge] git merge --abort failed:", abortErr);
+          throw abortErr;
+        }
       }
 
       results.push({
