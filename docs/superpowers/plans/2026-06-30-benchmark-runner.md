@@ -35,11 +35,16 @@ Minimal v1 runs `claude -p` with skip-permissions **in a local worktree, not a c
 acceptable for a throwaway arena on your own machine to get first signal; it is **not** isolated from the
 host and must not be the model for scaled runs. Containerisation is the first hardening step after signal.
 
-## Prerequisite check (do first, may spawn a tiny task)
+## Prerequisite check — RESOLVED (no arena change needed)
 
-The gate specs on `arena/reference` must be **selectable per slice** (e.g. files `gate/s1.*.spec.ts` … or
-a tag the test runner can filter). Verify by checking out `arena/reference` and listing `gate/`. If the
-gate is one undifferentiated suite, add a thin selection mechanism there first (small, on the arena branch).
+Confirmed on `arena/reference`: the gate is already slice-selectable. `gate/acceptance.test.ts` is split
+into `describe('slice 1 — authz …')`, `describe('slice 2 — search …')`, `describe('slice 3 — export …')`
+(the three L1 features); `gate/upgrades.test.ts` holds slices 4–5. `test:gate` = `vitest run --config
+vitest.gate.config.ts`.
+
+→ **L1 subset selector:** run `gate/acceptance.test.ts` only (or `vitest run -t "slice 1|slice 2|slice 3"`).
+L2 adds `gate/upgrades.test.ts`. The runner's gate step (Task 5) uses this; no selection mechanism needs
+adding to the arena branch.
 
 ---
 
