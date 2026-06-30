@@ -269,14 +269,13 @@ export async function runBenchmark(
           argv: [
             "git", "diff", "--name-only", "--diff-filter=A",
             "arena/base", ws.branch,
-            "--", "*.test.ts", "*.spec.ts",
           ],
           cwd: REPO_ROOT,
         });
         testDiscipline[ws.sliceId] = {
           testFilesAdded:
             exit === 0
-              ? stdout.split("\n").filter((l) => l.trim().length > 0).length
+              ? stdout.split("\n").filter((l) => /\.(test|spec)\.ts$/.test(l.trim())).length
               : 0,
         };
       }

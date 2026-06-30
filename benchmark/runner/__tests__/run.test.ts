@@ -26,9 +26,11 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../../..");
 const runPath = path.join(repoRoot, "benchmark/runs/standard-L1.run.yaml");
 const prQueueRunPath = path.join(__dirname, "fixtures/pr-queue.run.yaml");
-// standard-L1-resolver.run.yaml still has mode:'resolver' — used to test that
+// resolver-nobudget.run.yaml is a local fixture with mode:'resolver' — used to test that
 // unknown/legacy modes fall to mechanical (resolver code path must be GONE).
-const resolverRunPath = path.join(repoRoot, "benchmark/runs/standard-L1-resolver.run.yaml");
+// Using a local fixture so removing benchmark/runs/standard-L1-resolver.run.yaml later
+// won't break this test.
+const resolverFixturePath = path.join(__dirname, "fixtures/resolver-nobudget.run.yaml");
 
 // ---------------------------------------------------------------------------
 // Fixture data — never touch real git or the filesystem
@@ -403,8 +405,11 @@ describe("runBenchmark — pr-queue mode writeReport args", () => {
   it("writeReport receives prQueue result and testDiscipline; does NOT receive merge in parts", async () => {
     const writeReportSpy = vi.fn(() => fakeReportResult);
     const runCmdSpy = vi.fn(async (cmd: { argv: string[]; cwd: string }) => {
-      // For testDiscipline diff commands, return one filename so count = 1.
-      if (cmd.argv.includes("diff")) return { stdout: "foo.test.ts\n", exit: 0 };
+      // For testDiscipline diff commands, return nested paths that exercise
+      // the in-code filter: two test/spec files + one non-test file → count=2.
+      if (cmd.argv.includes("diff")) {
+        return { stdout: "tests/server/auth.test.ts\nsrc/foo.ts\ne2e/x.spec.ts\n", exit: 0 };
+      }
       return { stdout: "", exit: 0 };
     });
 
@@ -439,9 +444,10 @@ describe("runBenchmark — pr-queue mode writeReport args", () => {
     // testDiscipline present with one entry per slice (3 slices)
     expect(p.testDiscipline).toBeDefined();
     expect(Object.keys(p.testDiscipline!)).toHaveLength(3);
-    // Each slice got 1 file (our fake diff stdout returned "foo.test.ts\n")
+    // Each slice got 2 test files: auth.test.ts + x.spec.ts
+    // (src/foo.ts is NOT a test file and must be filtered out by the regex).
     for (const entry of Object.values(p.testDiscipline!)) {
-      expect(entry.testFilesAdded).toBe(1);
+      expect(entry.testFilesAdded).toBe(2);
     }
   });
 });
@@ -499,8 +505,8 @@ describe("runBenchmark — legacy resolver mode treated as mechanical", () => {
       teardown: vi.fn(async () => {}),
     } as unknown as RunBenchmarkDeps;
 
-    // resolverRunPath has integration.mode: resolver
-    await runBenchmark(resolverRunPath, { dryRun: false }, deps);
+    // resolverFixturePath has integration.mode: resolver (local fixture, no external file dependency)
+    await runBenchmark(resolverFixturePath, { dryRun: false }, deps);
 
     // resolver code path must be GONE — runPrQueue never called
     expect(runPrQueueSpy).not.toHaveBeenCalled();
