@@ -54,3 +54,4 @@
 {"id":"019f18af-683a-74c0-8fe6-f4b2b856fb99","author":"JB","kind":"prompt","text":"ok, run it then","ts":"2026-06-30T13:19:36Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
 {"id":"019f18b0-99c6-79f1-9d4d-07ad01dc7631","author":"JB","kind":"summary","text":"Nothing for you to do — sit tight and I'll report back.","ts":"2026-06-30T13:20:54Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
 {"id":"019f18b3-3884-72c2-a283-f65e9467f079","author":"JB","kind":"prompt","text":"where are the worktrees?","ts":"2026-06-30T13:23:45Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
+{"id":"019f18b3-a1e2-7e70-8b00-9367a50cfb2c","author":"JB","kind":"summary","text":"You can open any of them in an editor to watch an agent work live. The run is past provisioning and into the agent-build phase — I'll report when it lands.","ts":"2026-06-30T13:24:13Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
