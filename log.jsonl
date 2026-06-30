@@ -128,3 +128,4 @@
 {"id":"019f19ac-2199-7432-8f7a-43ba88270807","author":"JB","kind":"prompt","text":"argghh, im conflicted, help me decide. We have to ahve a way where the 'total cost to success' is measured and we can't get there if our arena doesn't always end in success.","ts":"2026-06-30T17:55:38Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
 {"id":"019f19ad-1ad6-70d2-988b-699d6dcb7cf7","author":"JB","kind":"summary","text":"**Decision: build that.** Want me to scope it?","ts":"2026-06-30T17:56:42Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
 {"id":"019f19ae-09ec-7e02-896a-7971008ef01d","author":"JB","kind":"prompt","text":"yes, scope it","ts":"2026-06-30T17:57:43Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
+{"id":"019f19b0-6d2c-7073-8ee7-f870175c8d98","author":"JB","kind":"summary","text":"Approve (or adjust) and I build it.","ts":"2026-06-30T18:00:20Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
