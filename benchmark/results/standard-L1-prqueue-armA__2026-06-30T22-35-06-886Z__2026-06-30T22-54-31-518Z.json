@@ -1,0 +1,93 @@
+{
+  "runId": "standard-L1-prqueue-armA__2026-06-30T22-35-06-886Z",
+  "wallMs": 1164660.5201,
+  "perSlice": {
+    "S1": {
+      "committed": true,
+      "tokens": 3695220,
+      "turns": 64,
+      "didNotComplete": false,
+      "merged": false,
+      "conflictedFiles": [],
+      "gate": "fail"
+    },
+    "S2": {
+      "committed": true,
+      "tokens": 2039159,
+      "turns": 39,
+      "didNotComplete": false,
+      "merged": false,
+      "conflictedFiles": [],
+      "gate": "fail"
+    },
+    "S3": {
+      "committed": true,
+      "tokens": 1470221,
+      "turns": 38,
+      "didNotComplete": false,
+      "merged": false,
+      "conflictedFiles": [],
+      "gate": "fail"
+    }
+  },
+  "textualConflicts": {
+    "total": 0,
+    "perSlice": {
+      "S1": [],
+      "S2": [],
+      "S3": []
+    }
+  },
+  "gate": {
+    "allPass": false,
+    "tscClean": true,
+    "buildClean": true
+  },
+  "totals": {
+    "tokens": 7204600,
+    "turns": 141,
+    "agentsDidNotComplete": 0
+  },
+  "semanticConflict": false,
+  "outcome": "fail",
+  "prQueue": {
+    "prs": [
+      {
+        "branch": "run/standard-L1-prqueue-armA__2026-06-30T22-35-06-886Z/S1",
+        "outcome": "blocked",
+        "reason": "ci-fail"
+      },
+      {
+        "branch": "run/standard-L1-prqueue-armA__2026-06-30T22-35-06-886Z/S2",
+        "outcome": "blocked",
+        "reason": "ci-fail"
+      },
+      {
+        "branch": "run/standard-L1-prqueue-armA__2026-06-30T22-35-06-886Z/S3",
+        "outcome": "blocked",
+        "reason": "ci-fail"
+      }
+    ],
+    "reachedSuccess": false,
+    "rounds": 3,
+    "envError": false,
+    "didNotComplete": true,
+    "integrationCost": {
+      "tokens": 2627587,
+      "turns": 59,
+      "wallMs": 575568.1211999999
+    }
+  },
+  "testDiscipline": {
+    "S1": {
+      "testFilesAdded": 1
+    },
+    "S2": {
+      "testFilesAdded": 1
+    },
+    "S3": {
+      "testFilesAdded": 2
+    }
+  },
+  "shippedButWrong": false
+}

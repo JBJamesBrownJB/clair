@@ -1,0 +1,88 @@
+{
+  "runId": "standard-L1-prqueue-armA",
+  "wallMs": 1274625.3561,
+  "perSlice": {
+    "S1": {
+      "committed": true,
+      "tokens": 3044079,
+      "turns": 68,
+      "didNotComplete": true,
+      "merged": false,
+      "conflictedFiles": [],
+      "gate": "fail"
+    },
+    "S2": {
+      "committed": true,
+      "tokens": 2443446,
+      "turns": 45,
+      "didNotComplete": true,
+      "merged": false,
+      "conflictedFiles": [],
+      "gate": "fail"
+    },
+    "S3": {
+      "committed": true,
+      "tokens": 1686455,
+      "turns": 37,
+      "didNotComplete": true,
+      "merged": false,
+      "conflictedFiles": [],
+      "gate": "fail"
+    }
+  },
+  "textualConflicts": {
+    "total": 0,
+    "perSlice": {
+      "S1": [],
+      "S2": [],
+      "S3": []
+    }
+  },
+  "gate": {
+    "allPass": false,
+    "tscClean": true,
+    "buildClean": true
+  },
+  "totals": {
+    "tokens": 7173980,
+    "turns": 150,
+    "agentsDidNotComplete": 3
+  },
+  "semanticConflict": false,
+  "outcome": "fail",
+  "prQueue": {
+    "prs": [
+      {
+        "branch": "run/standard-L1-prqueue-armA/S1",
+        "outcome": "blocked",
+        "reason": "ci-fail"
+      },
+      {
+        "branch": "run/standard-L1-prqueue-armA/S2",
+        "outcome": "blocked",
+        "reason": "ci-fail"
+      },
+      {
+        "branch": "run/standard-L1-prqueue-armA/S3",
+        "outcome": "blocked",
+        "reason": "ci-fail"
+      }
+    ],
+    "reachedSuccess": false,
+    "rounds": 3,
+    "envError": false,
+    "didNotComplete": true
+  },
+  "testDiscipline": {
+    "S1": {
+      "testFilesAdded": 1
+    },
+    "S2": {
+      "testFilesAdded": 1
+    },
+    "S3": {
+      "testFilesAdded": 1
+    }
+  },
+  "shippedButWrong": false
+}

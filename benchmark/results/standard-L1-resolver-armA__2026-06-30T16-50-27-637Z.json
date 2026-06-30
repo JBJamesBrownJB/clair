@@ -1,0 +1,70 @@
+{
+  "runId": "standard-L1-resolver-armA",
+  "wallMs": 1614850.4843000001,
+  "perSlice": {
+    "S1": {
+      "committed": true,
+      "tokens": 30569,
+      "turns": 52,
+      "didNotComplete": false,
+      "merged": true,
+      "conflictedFiles": [],
+      "gate": "fail"
+    },
+    "S2": {
+      "committed": true,
+      "tokens": 75877,
+      "turns": 92,
+      "didNotComplete": false,
+      "merged": false,
+      "conflictedFiles": [
+        "src/server/routes/items.ts"
+      ],
+      "gate": "pass"
+    },
+    "S3": {
+      "committed": true,
+      "tokens": 27248,
+      "turns": 31,
+      "didNotComplete": false,
+      "merged": false,
+      "conflictedFiles": [],
+      "gate": "fail"
+    }
+  },
+  "textualConflicts": {
+    "total": 1,
+    "perSlice": {
+      "S1": [],
+      "S2": [
+        "src/server/routes/items.ts"
+      ],
+      "S3": []
+    }
+  },
+  "gate": {
+    "allPass": false,
+    "tscClean": true,
+    "buildClean": true
+  },
+  "totals": {
+    "tokens": 133694,
+    "turns": 175,
+    "agentsDidNotComplete": 0
+  },
+  "semanticConflict": false,
+  "outcome": "fail",
+  "resolution": {
+    "ran": true,
+    "tokens": 20927,
+    "turns": 28,
+    "wallMs": 303098.0661000002,
+    "reachedGreen": true,
+    "didNotResolve": false
+  },
+  "resolutionCost": {
+    "tokens": 20927,
+    "turns": 28,
+    "wallMs": 303098.0661000002
+  }
+}
