@@ -208,8 +208,8 @@ export async function runBenchmark(
   // share a branch or worktree, making leftovers non-colliding and diagnosable.
   // Dry-run is intentionally excluded — it is side-effect-free and must not
   // mutate any state (including run.id).
-  const _now = deps.now ?? (() => new Date());
-  const stamp = _now().toISOString().replace(/[:.]/g, "-");
+  const getNow = deps.now ?? (() => new Date());
+  const stamp = getNow().toISOString().replace(/[:.]/g, "-");
   run.id = `${run.id}__${stamp}`;
 
   const budget: Budget = {

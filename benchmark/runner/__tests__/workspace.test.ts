@@ -88,11 +88,24 @@ describe("workspace provisioning", () => {
       }
     }
     branchesToCleanup = [];
-    // Clean up the temp dir
-    try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch {
-      // Best-effort
+    // Clean up the temp dir — but only if none of its worktree dirs are still
+    // registered with git. Deleting a registered worktree dir out from under git
+    // is exactly the corruption teardown prevents; don't replicate it in tests.
+    const registeredPaths = getWorktreePaths();
+    const hasDanglingWorktree = [...registeredPaths].some((p) =>
+      p.startsWith(path.normalize(tmpDir))
+    );
+    if (hasDanglingWorktree) {
+      console.warn(
+        `[afterEach] Skipping rmSync of "${tmpDir}" — it still contains registered worktree paths. ` +
+          `This indicates a teardown failure; leaving the dir intact to avoid git corruption.`
+      );
+    } else {
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        // Best-effort
+      }
     }
   });
 
@@ -247,5 +260,55 @@ describe("workspace provisioning", () => {
     // Second teardown — must not throw even though worktrees are already gone
     await expect(teardown(workspaces, { retryDelayMs: 0 })).resolves.toBeUndefined();
     workspaces = [];
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 7: Teardown failure path — worktree remove fails both attempts
+  // Invariants:
+  //   • teardown must NOT throw (resolves)
+  //   • prune must still be called
+  //   • the worktree DIRECTORY must NOT be deleted (anti-corruption guarantee)
+  // -------------------------------------------------------------------------
+
+  it("teardown does not throw and preserves the dir when worktree remove fails both attempts", async () => {
+    // Create a real temp dir that represents the worktree directory.
+    // We do NOT actually create a git worktree here — the injected runGit
+    // intercepts all git calls, so no real git state is involved.
+    const fakeWorktreeDir = fs.mkdtempSync(path.join(os.tmpdir(), "clair-bench-fail-"));
+
+    const fakeWorkspace: Workspace = {
+      sliceId: "fail-slice",
+      dir: fakeWorktreeDir,
+      branch: "run/test-fail/fail-slice",
+    };
+
+    const called: string[][] = [];
+
+    const failingRunGit = (args: string[]): void => {
+      called.push(args);
+      if (args[0] === "worktree" && args[1] === "remove") {
+        throw new Error("SIMULATED_LOCK: cannot remove worktree");
+      }
+      // prune and any other calls succeed (return void)
+    };
+
+    // teardown must resolve (not throw)
+    await expect(
+      teardown([fakeWorkspace], { retryDelayMs: 0, runGit: failingRunGit })
+    ).resolves.toBeUndefined();
+
+    // prune must have been called
+    const pruneCall = called.find((a) => a[0] === "worktree" && a[1] === "prune");
+    expect(pruneCall).toBeDefined();
+
+    // worktree remove must have been attempted (both the first try and the retry)
+    const removeCalls = called.filter((a) => a[0] === "worktree" && a[1] === "remove");
+    expect(removeCalls.length).toBe(2);
+
+    // CRITICAL: the directory must NOT have been deleted by teardown
+    expect(fs.existsSync(fakeWorktreeDir)).toBe(true);
+
+    // Cleanup the temp dir ourselves (teardown correctly left it alone)
+    fs.rmSync(fakeWorktreeDir, { recursive: true, force: true });
   });
 });

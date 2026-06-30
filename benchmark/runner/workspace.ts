@@ -120,16 +120,17 @@ export async function provision(
  */
 export async function teardown(
   workspaces: Workspace[],
-  deps?: { retryDelayMs?: number }
+  deps?: { retryDelayMs?: number; runGit?: (args: string[]) => void }
 ): Promise<void> {
   const delayMs = deps?.retryDelayMs ?? 500;
+  const runGit = deps?.runGit ?? git;
 
   for (const w of workspaces) {
     let removed = false;
 
     // First attempt
     try {
-      git(["worktree", "remove", "--force", w.dir]);
+      runGit(["worktree", "remove", "--force", w.dir]);
       removed = true;
     } catch {
       // May be a Windows file lock or "directory not empty" — retry once after delay
@@ -138,7 +139,7 @@ export async function teardown(
     if (!removed) {
       await new Promise<void>((r) => setTimeout(r, delayMs));
       try {
-        git(["worktree", "remove", "--force", w.dir]);
+        runGit(["worktree", "remove", "--force", w.dir]);
         removed = true;
       } catch {
         // Still failed — leave registered and intact to prevent .git corruption
@@ -157,7 +158,7 @@ export async function teardown(
   // Prune any worktree registry entries whose directory is already gone.
   // Safe: git worktree prune only removes entries for missing directories.
   try {
-    git(["worktree", "prune"]);
+    runGit(["worktree", "prune"]);
   } catch {
     // Prune failure is non-fatal
   }
