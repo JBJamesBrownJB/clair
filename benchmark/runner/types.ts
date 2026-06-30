@@ -30,9 +30,8 @@ export interface RunConfig {
     max_turns_per_agent: number;
   };
   integration: {
-    mode: string;
-    resolver?: string;
-    resolver_budget?: {
+    mode?: "mechanical" | "pr-queue";
+    queue_budget?: {
       max_tokens: number;
       max_turns: number;
     };

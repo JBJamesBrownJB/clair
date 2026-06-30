@@ -11,7 +11,6 @@ import { fileURLToPath } from "node:url";
 import type { AgentResult } from "./agent.js";
 import type { MergeResult } from "./merge.js";
 import type { GateResult } from "./gate.js";
-import type { ResolutionResult } from "./resolve.js";
 import type { PrQueueResult } from "./prQueue.js";
 
 // ---------------------------------------------------------------------------
@@ -67,10 +66,6 @@ export interface RunReport {
    *  The core signal: a silent semantic conflict that only the acceptance gate reveals. */
   semanticConflict: boolean;
   outcome: "all-pass" | "fail";
-  /** Full resolution result when a resolver agent was run; absent for mechanical runs. */
-  resolution?: ResolutionResult;
-  /** Convenience summary of resolver cost; absent for mechanical runs. */
-  resolutionCost?: { tokens: number; turns: number; wallMs: number };
   /** PR-queue outcomes — present when a PR-queue run was performed. */
   prQueue?: {
     prs: PrQueueResult["prs"];
@@ -99,10 +94,9 @@ export function writeReport(
   runId: string,
   parts: {
     agents: AgentResult[];
-    merge: MergeResult;
+    merge?: MergeResult;
     gate: GateResult;
     wallMs: number;
-    resolution?: ResolutionResult;
     prQueue?: PrQueueResult;
     testDiscipline?: Record<string, { testFilesAdded: number }>;
   },
@@ -117,13 +111,13 @@ export function writeReport(
   // slices whose agent record was missing.
   // -------------------------------------------------------------------------
   const agentMap = new Map(parts.agents.map((a) => [a.sliceId, a]));
-  const mergeMap = new Map(parts.merge.results.map((r) => [r.sliceId, r]));
+  const mergeMap = new Map((parts.merge?.results ?? []).map((r) => [r.sliceId, r]));
 
   // Canonical slice-id set = union of all three sources, iterated in stable order.
   const allSliceIds = [
     ...new Set<string>([
       ...parts.agents.map((a) => a.sliceId),
-      ...parts.merge.results.map((r) => r.sliceId),
+      ...(parts.merge?.results ?? []).map((r) => r.sliceId),
       ...Object.keys(parts.gate.perSlice),
     ]),
   ].sort();
@@ -166,7 +160,7 @@ export function writeReport(
   // -------------------------------------------------------------------------
   // Headline flags
   // -------------------------------------------------------------------------
-  const semanticConflict = parts.merge.mergedCleanly && !parts.gate.allPass;
+  const semanticConflict = (parts.merge?.mergedCleanly ?? false) && !parts.gate.allPass;
   const outcome: "all-pass" | "fail" =
     parts.gate.allPass && parts.gate.tscClean && parts.gate.buildClean
       ? "all-pass"
@@ -233,14 +227,6 @@ export function writeReport(
     totals: { tokens, turns, agentsDidNotComplete },
     semanticConflict,
     outcome,
-    ...(parts.resolution !== undefined && {
-      resolution: parts.resolution,
-      resolutionCost: {
-        tokens: parts.resolution.tokens,
-        turns: parts.resolution.turns,
-        wallMs: parts.resolution.wallMs,
-      },
-    }),
     ...(prQueueField !== undefined && { prQueue: prQueueField }),
     ...(costToSuccess !== undefined && { costToSuccess }),
     ...(parts.testDiscipline !== undefined && { testDiscipline: parts.testDiscipline }),
@@ -261,12 +247,6 @@ export function writeReport(
   lines.push(`Textual conflicts: ${conflictTotal}`);
   lines.push(`Agents did-not-complete: ${agentsDidNotComplete}`);
   lines.push(`Totals: tokens=${tokens}, turns=${turns}, wall=${Math.round(parts.wallMs)}ms`);
-  if (parts.resolution !== undefined) {
-    const r = parts.resolution;
-    lines.push(
-      `Resolution: reached-green=${r.reachedGreen}  cost=${r.tokens} tokens / ${r.turns} turns / ${r.wallMs}ms  (didNotResolve=${r.didNotResolve})`
-    );
-  }
 
   // PR-queue summary lines (only when prQueue was provided)
   if (parts.prQueue !== undefined && prQueueField !== undefined) {

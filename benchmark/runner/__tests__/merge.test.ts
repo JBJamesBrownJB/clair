@@ -34,7 +34,7 @@ function makeRun(id: string): RunConfig {
     agents: 0,
     model: "",
     budget: { max_tokens_per_agent: 0, max_turns_per_agent: 0 },
-    integration: { mode: "", resolver: "" },
+    integration: {},
     trials: { k: 1 },
     metrics: [],
   };

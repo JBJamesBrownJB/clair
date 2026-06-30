@@ -8,7 +8,6 @@ import type { RunReport } from "../report.js";
 import type { AgentResult } from "../agent.js";
 import type { MergeResult } from "../merge.js";
 import type { GateResult } from "../gate.js";
-import type { ResolutionResult } from "../resolve.js";
 import type { PrQueueResult } from "../prQueue.js";
 
 // Real benchmark/results/ path — used to assert no test pollution.
@@ -515,101 +514,6 @@ describe("writeReport — no resultsDir → no kept file (opt-in guard)", () => 
     // No file created under the real benchmark/results/ dir
     const wouldBeFile = path.join(REAL_RESULTS_DIR, "run-no-kept-dir__latest.json");
     expect(fs.existsSync(wouldBeFile)).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Test 8: resolution metrics in report
-// ---------------------------------------------------------------------------
-
-function makeResolution(overrides?: Partial<ResolutionResult>): ResolutionResult {
-  return {
-    ran: true,
-    tokens: 4200,
-    turns: 7,
-    wallMs: 12500,
-    reachedGreen: true,
-    didNotResolve: false,
-    ...overrides,
-  };
-}
-
-describe("writeReport — resolution present (reachedGreen=true)", () => {
-  it("json carries resolution block, resolutionCost matches, summary has Resolution line with reached-green=true", () => {
-    const outDir = makeTempDir();
-    const resolution = makeResolution();
-
-    const { json, summary } = writeReport(
-      "run-res-001",
-      {
-        agents: makeAgents(),
-        merge: makeAllPassMerge(),
-        gate: makeAllPassGate(),
-        wallMs: 20000,
-        resolution,
-      },
-      { outDir }
-    );
-
-    // json.resolution carries the full ResolutionResult
-    expect(json.resolution).toEqual(resolution);
-
-    // resolutionCost is derived from resolution
-    expect(json.resolutionCost).toBeDefined();
-    expect(json.resolutionCost!.tokens).toBe(4200);
-    expect(json.resolutionCost!.turns).toBe(7);
-    expect(json.resolutionCost!.wallMs).toBe(12500);
-
-    // summary contains a Resolution line
-    expect(summary).toContain("Resolution:");
-    expect(summary).toContain("reached-green=true");
-  });
-});
-
-describe("writeReport — resolution present (didNotResolve=true)", () => {
-  it("summary shows didNotResolve=true", () => {
-    const outDir = makeTempDir();
-    const resolution = makeResolution({ reachedGreen: false, didNotResolve: true });
-
-    const { summary } = writeReport(
-      "run-res-002",
-      {
-        agents: makeAgents(),
-        merge: makeAllPassMerge(),
-        gate: makeAllPassGate(),
-        wallMs: 20000,
-        resolution,
-      },
-      { outDir }
-    );
-
-    expect(summary).toContain("Resolution:");
-    expect(summary).toContain("didNotResolve=true");
-  });
-});
-
-describe("writeReport — no resolution (mechanical run)", () => {
-  it("json.resolution is absent, resolutionCost is absent, summary has no Resolution line", () => {
-    const outDir = makeTempDir();
-
-    const { json, summary } = writeReport(
-      "run-mech-001",
-      {
-        agents: makeAgents(),
-        merge: makeAllPassMerge(),
-        gate: makeAllPassGate(),
-        wallMs: 10000,
-        // no resolution
-      },
-      { outDir }
-    );
-
-    // resolution and resolutionCost must be absent
-    expect(json.resolution).toBeUndefined();
-    expect(json.resolutionCost).toBeUndefined();
-
-    // summary must have NO Resolution line
-    expect(summary).not.toContain("Resolution:");
   });
 });
 

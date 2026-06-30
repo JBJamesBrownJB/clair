@@ -3,7 +3,12 @@
  *
  * Wires Tasks 1–6 into a single pipeline:
  *   loadRun → buildSliceSpecs
- *   provision → runAgents → mergeSlices → runGate → writeReport → teardown
+ *   provision → runAgents → [merge | pr-queue] → runGate → writeReport → teardown
+ *
+ * Integration modes:
+ *   mechanical (default): mergeSlices → runGate → writeReport
+ *   pr-queue:             create integration worktree → runPrQueue → runGate →
+ *                         compute testDiscipline → writeReport
  *
  * CLI usage (safe — no agents spawned):
  *   pnpm exec tsx run.ts ../runs/standard-L1.run.yaml --dry-run
@@ -28,13 +33,15 @@ import type { Budget } from "./agent.js";
 import { mergeSlices } from "./merge.js";
 import { runGate } from "./gate.js";
 import { writeReport } from "./report.js";
-import { runResolver } from "./resolve.js";
+import { runPrQueue } from "./prQueue.js";
+import type { PrQueueResult } from "./prQueue.js";
+import { defaultRunCmd } from "./shell.js";
+import type { RunCmdFn } from "./shell.js";
 import type { RunConfig, SliceSpec } from "./types.js";
 import type { AgentResult } from "./agent.js";
 import type { MergeResult } from "./merge.js";
 import type { GateResult } from "./gate.js";
 import type { RunReport } from "./report.js";
-import type { ResolutionResult } from "./resolve.js";
 
 // ---------------------------------------------------------------------------
 // Resolve paths
@@ -49,6 +56,9 @@ const REPO_ROOT = path.resolve(__dirname, "../..");
 /** Path to the shared backlog used by buildSliceSpecs. */
 const BACKLOG_PATH = path.join(REPO_ROOT, "benchmark/backlog/backlog.md");
 
+/** Default scratch directory for worktrees — git-ignored. */
+const DEFAULT_WORK_DIR = path.join(__dirname, ".work");
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -60,8 +70,8 @@ export interface DryRunPlan {
   topology: string;
   model: string;
   budget: { max_tokens_per_agent: number; max_turns_per_agent: number };
-  integrationMode: "resolver" | "mechanical";
-  resolverBudget?: { max_tokens: number; max_turns: number };
+  integrationMode: "mechanical" | "pr-queue";
+  queueBudget?: { max_tokens: number; max_turns: number };
   slices: Array<{ id: string; title: string; prompt: string }>;
 }
 
@@ -91,25 +101,29 @@ export interface RunBenchmarkDeps {
     slices: Array<{ sliceId: string; branch: string }>,
     opts?: { onConflict?: "abort" | "leave"; rootDir?: string }
   ) => Promise<MergeResult>;
-  runResolver?: (
+  runPrQueue?: (
     run: RunConfig,
-    sliceBranches: string[],
+    branches: string[],
     integration: Workspace,
     budget: Budget
-  ) => Promise<ResolutionResult>;
+  ) => Promise<PrQueueResult>;
   runGate?: (integration: Workspace, run: RunConfig) => Promise<GateResult>;
   writeReport?: (
     runId: string,
     parts: {
       agents: AgentResult[];
-      merge: MergeResult;
+      merge?: MergeResult;
       gate: GateResult;
       wallMs: number;
-      resolution?: ResolutionResult;
+      prQueue?: PrQueueResult;
+      testDiscipline?: Record<string, { testFilesAdded: number }>;
     },
     opts?: { outDir?: string; resultsDir?: string; stamp?: string }
   ) => { json: RunReport; summary: string; path: string; resultPath: string | null };
   teardown?: (workspaces: Workspace[]) => Promise<void>;
+  /** Shell runner used for integration-worktree creation and testDiscipline diffs.
+   *  Defaults to defaultRunCmd. Inject a fake in tests to avoid real git calls. */
+  runCmd?: RunCmdFn;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,25 +148,30 @@ export async function runBenchmark(
   const _provision = deps.provision ?? provision;
   const _runAgents = deps.runAgents ?? runAgents;
   const _mergeSlices = deps.mergeSlices ?? mergeSlices;
-  const _runResolver = deps.runResolver ?? runResolver;
+  const _runPrQueue = deps.runPrQueue ?? runPrQueue;
   const _runGate = deps.runGate ?? runGate;
   const _writeReport = deps.writeReport ?? writeReport;
   const _teardown = deps.teardown ?? teardown;
+  const _runCmd = deps.runCmd ?? defaultRunCmd;
 
   // Resolve + build specs (these are pure file reads — safe in both paths)
   const run = loadRun(runPath);
   const specs = buildSliceSpecs(run, BACKLOG_PATH);
 
+  // Determine integration mode once — only 'pr-queue' activates the pr-queue path.
+  // Any other value (including the legacy 'resolver', unknown strings, undefined)
+  // falls through to mechanical (safe default).
+  const rawMode = run.integration?.mode;
+  const isPrQueueMode = rawMode === "pr-queue";
+  const integrationMode: "mechanical" | "pr-queue" = isPrQueueMode ? "pr-queue" : "mechanical";
+
   // ------------------------------------------------------------------
   // Dry-run path — print the plan, return it, no git side-effects
   // ------------------------------------------------------------------
   if (opts.dryRun) {
-    const rawMode = run.integration?.mode;
-    const integrationMode: "resolver" | "mechanical" =
-      rawMode === "resolver" ? "resolver" : "mechanical";
-    const resolverBudget =
-      integrationMode === "resolver" && run.integration?.resolver_budget
-        ? run.integration.resolver_budget
+    const queueBudget =
+      integrationMode === "pr-queue" && run.integration?.queue_budget
+        ? run.integration.queue_budget
         : undefined;
 
     const plan: DryRunPlan = {
@@ -166,7 +185,7 @@ export async function runBenchmark(
         max_turns_per_agent: run.budget.max_turns_per_agent,
       },
       integrationMode,
-      ...(resolverBudget ? { resolverBudget } : {}),
+      ...(queueBudget ? { queueBudget } : {}),
       slices: specs.map((s) => ({ id: s.id, title: s.title, prompt: s.prompt })),
     };
 
@@ -175,8 +194,7 @@ export async function runBenchmark(
   }
 
   // ------------------------------------------------------------------
-  // Live path — provision → agents → merge → gate → report → teardown
-  // teardown runs in finally so it executes even on error.
+  // Live path — teardown runs in finally so it executes even on error.
   // ------------------------------------------------------------------
   const budget: Budget = {
     max_tokens_per_agent: run.budget.max_tokens_per_agent,
@@ -187,20 +205,7 @@ export async function runBenchmark(
   const wallStart = performance.now();
   let workspaces: Workspace[] = [];
   let merge: MergeResult | undefined;
-
-  // Determine integration mode — only 'resolver' activates the resolver path.
-  const integrationMode = run.integration?.mode;
-  const isResolverMode = integrationMode === "resolver";
-
-  // Build resolver budget from YAML's integration.resolver_budget, falling back
-  // to the run's main budget if resolver_budget is absent.
-  const resolverBudget: Budget = {
-    max_tokens_per_agent:
-      run.integration?.resolver_budget?.max_tokens ?? run.budget.max_tokens_per_agent,
-    max_turns_per_agent:
-      run.integration?.resolver_budget?.max_turns ?? run.budget.max_turns_per_agent,
-    model: run.model,
-  };
+  let integrationWs: Workspace | undefined; // only set in pr-queue mode
 
   try {
     // 1. Provision one worktree per slice
@@ -214,29 +219,95 @@ export async function runBenchmark(
     });
     const agents = await _runAgents(items, budget);
 
-    // 3. Merge all slice branches into an integration branch.
-    //    MUST be before teardown (teardown deletes the slice branches).
-    //    Resolver mode: leave conflict markers for the resolver agent.
-    //    Mechanical mode (default): abort on conflict (clean worktree).
     const sliceBranches = workspaces.map((w) => ({
       sliceId: w.sliceId,
       branch: w.branch,
     }));
-    merge = await _mergeSlices(
-      run,
-      sliceBranches,
-      isResolverMode ? { onConflict: "leave" } : undefined
-    );
 
-    // 3b. [Resolver mode only] Run a headless resolver agent against the
-    //     conflicted integration worktree, then hand off to the gate.
-    let resolution: ResolutionResult | undefined;
-    if (isResolverMode) {
-      const branchNames = sliceBranches.map((s) => s.branch);
-      resolution = await _runResolver(run, branchNames, merge.integration, resolverBudget);
+    // ------------------------------------------------------------------
+    // Integration: PR-queue mode
+    // ------------------------------------------------------------------
+    if (isPrQueueMode) {
+      // 3. Create a clean integration worktree off arena/base.
+      //    The pr-queue does its own merges into this worktree.
+      const integrationBranch = `run/${run.id}/integration`;
+      const integrationDir = path.join(DEFAULT_WORK_DIR, `${run.id}-integration`);
+      const { exit: wtExit } = await _runCmd({
+        argv: ["git", "worktree", "add", "-b", integrationBranch, integrationDir, "arena/base"],
+        cwd: REPO_ROOT,
+      });
+      if (wtExit !== 0) {
+        throw new Error(`Failed to create integration worktree for run ${run.id}`);
+      }
+      integrationWs = { sliceId: "integration", dir: integrationDir, branch: integrationBranch };
+
+      // 4. Map queue_budget → Budget for the fix-loop agents.
+      const queueBudget: Budget = {
+        max_tokens_per_agent:
+          run.integration?.queue_budget?.max_tokens ?? run.budget.max_tokens_per_agent,
+        max_turns_per_agent:
+          run.integration?.queue_budget?.max_turns ?? run.budget.max_turns_per_agent,
+        model: run.model,
+      };
+
+      // 5. Run the PR queue (merge + CI + fix-loop per branch).
+      const prQueueResult = await _runPrQueue(
+        run,
+        sliceBranches.map((s) => s.branch),
+        integrationWs,
+        queueBudget
+      );
+
+      // 6. Run the held-out gate against the final integration worktree.
+      const gate = await _runGate(integrationWs, run);
+
+      // 7. Compute test discipline: count test files ADDED on each slice branch
+      //    vs arena/base. Best-effort — on git error → 0.
+      const testDiscipline: Record<string, { testFilesAdded: number }> = {};
+      for (const ws of workspaces) {
+        const { stdout, exit } = await _runCmd({
+          argv: [
+            "git", "diff", "--name-only", "--diff-filter=A",
+            "arena/base", ws.branch,
+            "--", "*.test.ts", "*.spec.ts",
+          ],
+          cwd: REPO_ROOT,
+        });
+        testDiscipline[ws.sliceId] = {
+          testFilesAdded:
+            exit === 0
+              ? stdout.split("\n").filter((l) => l.trim().length > 0).length
+              : 0,
+        };
+      }
+
+      // 8. Write the report.
+      const wallMs = performance.now() - wallStart;
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const resultsDir = path.join(REPO_ROOT, "benchmark/results");
+      const reportResult = _writeReport(
+        run.id,
+        { agents, gate, wallMs, prQueue: prQueueResult, testDiscipline },
+        { resultsDir, stamp }
+      );
+
+      return {
+        dryRun: false,
+        outcome: reportResult.json.outcome,
+        report: reportResult,
+      };
     }
 
-    // 4. Run the held-out gate against the integration worktree
+    // ------------------------------------------------------------------
+    // Integration: Mechanical mode (default)
+    // Merge all slice branches into an integration branch, abort on conflict.
+    // ------------------------------------------------------------------
+
+    // 3. Merge all slice branches into an integration branch.
+    //    MUST be before teardown (teardown deletes the slice branches).
+    merge = await _mergeSlices(run, sliceBranches);
+
+    // 4. Run the held-out gate against the integration worktree.
     const gate = await _runGate(merge.integration, run);
 
     // 5. Assemble + write the report (sync — does its own console.log).
@@ -247,7 +318,7 @@ export async function runBenchmark(
     const resultsDir = path.join(REPO_ROOT, "benchmark/results");
     const reportResult = _writeReport(
       run.id,
-      { agents, merge, gate, wallMs, ...(resolution !== undefined ? { resolution } : {}) },
+      { agents, merge, gate, wallMs },
       { resultsDir, stamp }
     );
 
@@ -257,7 +328,7 @@ export async function runBenchmark(
       report: reportResult,
     };
   } finally {
-    // 6. Clean up ALL worktrees: per-slice + integration (if created).
+    // 6 / 9. Clean up ALL worktrees: per-slice + integration (if created).
     //    Runs after report on the happy path; runs on any error too.
     //    Teardown is wrapped so that if it throws, the teardown error is
     //    logged but NOT propagated — the original stage error (if any)
@@ -265,6 +336,7 @@ export async function runBenchmark(
     const toClean: Workspace[] = [
       ...workspaces,
       ...(merge?.integration ? [merge.integration] : []),
+      ...(integrationWs ? [integrationWs] : []),
     ];
     try {
       await _teardown(toClean);
@@ -292,8 +364,8 @@ function printDryRunPlan(plan: DryRunPlan): void {
     `Budget:   max_tokens=${plan.budget.max_tokens_per_agent}  max_turns=${plan.budget.max_turns_per_agent}`
   );
   console.log(
-    plan.integrationMode === "resolver"
-      ? `Integration: resolver${plan.resolverBudget ? `  (resolver budget: max_tokens=${plan.resolverBudget.max_tokens} max_turns=${plan.resolverBudget.max_turns})` : ""}`
+    plan.integrationMode === "pr-queue"
+      ? `Integration: pr-queue${plan.queueBudget ? `  (queue budget: max_tokens=${plan.queueBudget.max_tokens} max_turns=${plan.queueBudget.max_turns})` : ""}`
       : `Integration: mechanical`
   );
   console.log(`Slices:   ${plan.slices.length}\n`);

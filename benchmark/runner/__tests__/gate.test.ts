@@ -30,7 +30,7 @@ function makeRun(overrides?: Partial<RunConfig>): RunConfig {
     agents: 3,
     model: "test-model",
     budget: { max_tokens_per_agent: 50_000, max_turns_per_agent: 10 },
-    integration: { mode: "merge", resolver: "none" },
+    integration: { mode: "mechanical" },
     trials: { k: 1 },
     metrics: [],
     ...overrides,
