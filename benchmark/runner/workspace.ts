@@ -31,29 +31,58 @@ function gitOutput(args: string[]): string {
 }
 
 /**
+ * Run `pnpm install` in a worktree. On Windows `pnpm` is a `.cmd` shim that
+ * `execFileSync` cannot launch without a shell — mirror the win32 handling used
+ * by agent.ts and gate.ts. (`git` is a real .exe and needs no shell.)
+ */
+function defaultInstall(dir: string): void {
+  execFileSync("pnpm", ["install"], {
+    cwd: dir,
+    stdio: "inherit",
+    ...(process.platform === "win32" ? { shell: true } : {}),
+  });
+}
+
+/**
  * Provision one git worktree per slice, each on a fresh branch
  * `run/<runId>/<sliceId>` created from `arena/base`.
+ *
+ * All-or-nothing: if any step throws partway, the worktrees/branches created so
+ * far are torn down before the error propagates, so a partial failure never
+ * leaves dangling git state for the caller to clean up.
  */
 export async function provision(
   run: RunConfig,
-  opts?: { rootDir?: string; install?: boolean }
+  opts?: { rootDir?: string; install?: boolean },
+  deps?: { install?: (dir: string) => void }
 ): Promise<Workspace[]> {
   const rootDir = opts?.rootDir ?? DEFAULT_WORK_DIR;
   const install = opts?.install ?? true;
+  const installFn = deps?.install ?? defaultInstall;
 
   const workspaces: Workspace[] = [];
 
-  for (const slice of run.slices) {
-    const branch = `run/${run.id}/${slice.id}`;
-    const dir = path.join(rootDir, `${run.id}-${slice.id}`);
+  try {
+    for (const slice of run.slices) {
+      const branch = `run/${run.id}/${slice.id}`;
+      const dir = path.join(rootDir, `${run.id}-${slice.id}`);
 
-    git(["worktree", "add", "-b", branch, dir, "arena/base"]);
+      git(["worktree", "add", "-b", branch, dir, "arena/base"]);
+      // Register before install so a failing install still gets cleaned up.
+      workspaces.push({ sliceId: slice.id, dir, branch });
 
-    if (install) {
-      execFileSync("pnpm", ["install"], { cwd: dir, stdio: "inherit" });
+      if (install) {
+        installFn(dir);
+      }
     }
-
-    workspaces.push({ sliceId: slice.id, dir, branch });
+  } catch (err) {
+    // Partial provision: remove whatever we created, best-effort, then rethrow.
+    try {
+      await teardown(workspaces);
+    } catch {
+      // Cleanup is best-effort; surface the original error.
+    }
+    throw err;
   }
 
   return workspaces;

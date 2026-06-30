@@ -111,6 +111,35 @@ describe("workspace provisioning", () => {
     }
   });
 
+  it("provision cleans up worktrees and branches when install fails partway (all-or-nothing)", async () => {
+    const run = loadRun(runConfigPath);
+
+    let calls = 0;
+    const failingInstall = () => {
+      calls += 1;
+      if (calls === 2) throw new Error("INSTALL_BOOM");
+    };
+
+    await expect(
+      provision(run, { rootDir: tmpDir, install: true }, { install: failingInstall })
+    ).rejects.toThrow("INSTALL_BOOM");
+
+    // No worktree dirs for this run remain on disk or in git's worktree list.
+    const worktrees = getWorktreePaths();
+    for (const slice of run.slices) {
+      const dir = path.normalize(path.join(tmpDir, `${run.id}-${slice.id}`));
+      expect(fs.existsSync(dir)).toBe(false);
+      expect(worktrees.has(dir)).toBe(false);
+    }
+
+    // No run/<runId>/* branches remain.
+    const branches = execFileSync("git", ["branch", "--list", `run/${run.id}/*`], {
+      cwd: repoRoot,
+      encoding: "utf-8",
+    }).trim();
+    expect(branches).toBe("");
+  });
+
   it("teardown on already-removed workspaces does not throw", async () => {
     const run = loadRun(runConfigPath);
     workspaces = await provision(run, { rootDir: tmpDir, install: false });
