@@ -844,3 +844,127 @@ describe("writeReport — no prQueue (mechanical run)", () => {
     expect(summary).toContain("tokens=3500");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task-2 Test 1: prQueue with a blocked PR carrying fixCost + integrationCost
+// ---------------------------------------------------------------------------
+
+describe("writeReport — prQueue: blocked PR with fixCost (fix-loop cost visible)", () => {
+  it("JSON includes integrationCost on prQueue block and per-PR fixCost+rounds; summary shows fix spend and integration-cost total", () => {
+    const outDir = makeTempDir();
+    const prQueue: PrQueueResult = {
+      prs: [
+        {
+          branch: "S1",
+          outcome: "blocked",
+          reason: "ci-fail",
+          fixCost: { tokens: 1200000, turns: 40, wallMs: 5000 },
+          rounds: 1,
+        },
+      ],
+      reachedSuccess: false,
+      integrationCost: { tokens: 1200000, turns: 40, wallMs: 5000 },
+      rounds: 1,
+      envError: false,
+      didNotComplete: true,
+    };
+
+    const { json, summary } = writeReport(
+      "run-fix-cost",
+      {
+        agents: makeAgents(),
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 12000,
+        prQueue,
+      },
+      { outDir }
+    );
+
+    // JSON: integrationCost present in prQueue block
+    expect(json.prQueue).toBeDefined();
+    expect(json.prQueue!.integrationCost).toEqual({ tokens: 1200000, turns: 40, wallMs: 5000 });
+
+    // JSON: per-PR fixCost and rounds carried through
+    expect(json.prQueue!.prs[0]!.fixCost).toEqual({ tokens: 1200000, turns: 40, wallMs: 5000 });
+    expect(json.prQueue!.prs[0]!.rounds).toBe(1);
+
+    // Summary: per-PR fix spend line for S1
+    expect(summary).toContain("fix spent");
+    expect(summary).toContain("1200000 tok");
+    expect(summary).toContain("40 turns");
+
+    // Summary: integration-cost total line
+    expect(summary).toContain("Integration (fix-loop) cost:");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task-2 Test 2: PR merged cleanly (no fix agent — fixCost absent)
+// ---------------------------------------------------------------------------
+
+describe("writeReport — prQueue: PR merged cleanly without fix (fixCost absent)", () => {
+  it("no fix-spend line in summary for PR without fixCost; JSON prs[0].fixCost absent; integrationCost still present on prQueue", () => {
+    const outDir = makeTempDir();
+    const prQueue: PrQueueResult = {
+      prs: [
+        { branch: "S1", outcome: "merged" },
+      ],
+      reachedSuccess: true,
+      integrationCost: { tokens: 0, turns: 0, wallMs: 0 },
+      rounds: 0,
+      envError: false,
+      didNotComplete: false,
+    };
+
+    const { json, summary } = writeReport(
+      "run-no-fix",
+      {
+        agents: makeAgents(),
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 8000,
+        prQueue,
+      },
+      { outDir }
+    );
+
+    // JSON: prs[0].fixCost absent
+    expect(json.prQueue).toBeDefined();
+    expect(json.prQueue!.prs[0]!.fixCost).toBeUndefined();
+
+    // JSON: integrationCost present (even when 0)
+    expect(json.prQueue!.integrationCost).toEqual({ tokens: 0, turns: 0, wallMs: 0 });
+
+    // Summary: no fix-spend line since no PR had a fix agent
+    expect(summary).not.toContain("fix spent");
+
+    // Summary: integration-cost line still present when prQueue present
+    expect(summary).toContain("Integration (fix-loop) cost:");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task-2 Test 3: Mechanical run (no prQueue) — no integration-cost line
+// ---------------------------------------------------------------------------
+
+describe("writeReport — mechanical run: no integration-cost line", () => {
+  it("summary has no Integration (fix-loop) cost line when no prQueue provided", () => {
+    const outDir = makeTempDir();
+
+    const { summary } = writeReport(
+      "run-mech-no-ic",
+      {
+        agents: makeAgents(),
+        merge: makeAllPassMerge(),
+        gate: makeAllPassGate(),
+        wallMs: 8000,
+        // no prQueue
+      },
+      { outDir }
+    );
+
+    expect(summary).not.toContain("Integration (fix-loop) cost:");
+    expect(summary).not.toContain("fix spent");
+  });
+});

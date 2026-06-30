@@ -73,6 +73,8 @@ export interface RunReport {
     rounds: number;
     envError: boolean;
     didNotComplete: boolean;
+    /** Sum of tokens/turns/wallMs consumed by all fix agents (the fix-loop total). */
+    integrationCost: { tokens: number; turns: number; wallMs: number };
   };
   /** Cost-to-success breakdown — present only when prQueue.reachedSuccess is true. */
   costToSuccess?: CostToSuccess;
@@ -190,6 +192,7 @@ export function writeReport(
       rounds: pq.rounds,
       envError: pq.envError,
       didNotComplete: pq.didNotComplete,
+      integrationCost: pq.integrationCost,
     };
 
     // Tampering: branches whose PR entry has tampered=true
@@ -278,6 +281,20 @@ export function writeReport(
       const blockedCount = pq.prs.filter((p) => p.outcome === "blocked").length;
       lines.push(`DID NOT COMPLETE — ${blockedCount} ${blockedCount === 1 ? "PR" : "PRs"} blocked`);
     }
+
+    // Per-PR fix-spend lines (for any PR that had a fix agent run — fixCost present)
+    for (const p of pq.prs) {
+      if (p.fixCost !== undefined) {
+        const outcomeLabel = p.outcome === "blocked"
+          ? `blocked${p.reason !== undefined ? ` (${p.reason})` : ""}`
+          : "merged";
+        lines.push(`${p.branch}: ${outcomeLabel} — fix spent ${p.fixCost.tokens} tok / ${p.fixCost.turns} turns`);
+      }
+    }
+
+    // Integration (fix-loop) total cost — always shown when prQueue present
+    const ic = pq.integrationCost;
+    lines.push(`Integration (fix-loop) cost: ${ic.tokens} tok / ${ic.turns} turns / ${ic.wallMs}ms`);
 
     // M-2: shipped-but-wrong warning (visible CI passed but hidden gate failed)
     if (shippedButWrong === true) {
