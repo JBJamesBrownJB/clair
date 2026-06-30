@@ -147,7 +147,7 @@ describe("runBenchmark — dry-run", () => {
     expect(plan.arm).toBe("A");
     expect(plan.topology).toBe("local-worktrees");
     expect(plan.model).toBe("claude-opus-4-8");
-    expect(plan.budget.max_tokens_per_agent).toBe(1500000);
+    expect(plan.budget.max_tokens_per_agent).toBe(6000000);
     expect(plan.budget.max_turns_per_agent).toBe(120);
 
     // Per-slice fields: ids, titles, non-trivial prompts

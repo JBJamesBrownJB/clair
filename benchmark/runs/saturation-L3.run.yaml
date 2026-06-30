@@ -42,7 +42,7 @@ model: claude-opus-4-8
 temperature: 0
 
 budget:
-  max_tokens_per_agent: 1500000   # starting point — calibrate from first dry runs
+  max_tokens_per_agent: 6000000   # recalibrated for cache-inclusive tokens (build agents observed ~1.7-3M tok / 37-68 turns; turns are the real bound)
   max_turns_per_agent: 120
 
 integration:
