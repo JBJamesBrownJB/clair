@@ -91,7 +91,8 @@ export async function mergeSlices(
 
   const results: MergeSliceResult[] = [];
 
-  for (const slice of slices) {
+  for (let i = 0; i < slices.length; i++) {
+    const slice = slices[i];
     try {
       // Merge commits need a user identity; fall back to no-op env values if not configured.
       gitIn(integrationDir, [
@@ -119,8 +120,7 @@ export async function mergeSlices(
           merged: false,
           conflictedFiles,
         });
-        const sliceIndex = slices.indexOf(slice);
-        for (const remaining of slices.slice(sliceIndex + 1)) {
+        for (const remaining of slices.slice(i + 1)) {
           results.push({
             sliceId: remaining.sliceId,
             branch: remaining.branch,

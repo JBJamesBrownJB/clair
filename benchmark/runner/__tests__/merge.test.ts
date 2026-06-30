@@ -239,6 +239,7 @@ describe("mergeSlices", () => {
       integrationWorkspace = result.integration;
 
       expect(result.mergedCleanly).toBe(false);
+      expect(result.results).toHaveLength(3);
 
       // First slice merged cleanly
       expect(result.results[0]).toMatchObject({ sliceId: "lv-c1", merged: true, conflictedFiles: [] });
