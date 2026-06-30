@@ -19,7 +19,6 @@ function parseBacklog(backlogPath: string): Map<string, BacklogItem> {
 
   // Split on section headers: ### `ID` — Title
   // Each section starts at ### `
-  const sectionPattern = /^### `([A-Z]+-\d+)` — (.+)$/m;
   // Split the file into chunks at each ### `...` header
   const parts = raw.split(/^(?=### `[A-Z]+-\d+`)/m);
 
@@ -51,6 +50,12 @@ function parseBacklog(backlogPath: string): Map<string, BacklogItem> {
           acceptanceCriteria.push(bullet[1].trim());
         }
       }
+    }
+
+    if (acceptanceCriteria.length === 0) {
+      throw new Error(
+        `Backlog item ${id}: no acceptance criteria parsed — backlog format may have changed`
+      );
     }
 
     items.set(id, { id, title, rationale, touchSet, acceptanceCriteria });

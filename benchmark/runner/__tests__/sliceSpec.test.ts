@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import path from "node:path";
+import os from "node:os";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadRun } from "../loadRun.js";
 import { buildSliceSpecs } from "../sliceSpec.js";
+import type { RunConfig } from "../types.js"; // used in cast below
 
 // Resolve paths relative to the repo root
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -111,6 +114,37 @@ describe("buildSliceSpecs", () => {
       const specs = buildSliceSpecs(run, backlogPath);
       const s3 = specs.find(s => s.id === "S3")!;
       expect(s3.prompt).not.toContain("microscope");
+    });
+  });
+
+  describe("acceptance-criteria parse errors", () => {
+    it("throws when a backlog item has no parseable acceptance criteria", () => {
+      // Write a minimal backlog with F-99 present but AC block absent/malformed
+      const malformedBacklog = [
+        "### `F-99` — Malformed item",
+        "",
+        "- **Rationale:** Some rationale",
+        "",
+        "- **Touch-set:** `src/foo.ts`",
+        "",
+        "- **Acceptance criteria (behavioral — gate material):**",
+        // no bullet lines follow — block is empty
+        "",
+      ].join("\n");
+
+      const tmpBacklog = path.join(os.tmpdir(), `backlog-malformed-${Date.now()}.md`);
+      fs.writeFileSync(tmpBacklog, malformedBacklog, "utf-8");
+
+      // buildSliceSpecs only reads run.slices; cast minimal object to satisfy TS
+      const fakeRun = {
+        slices: [{ id: "S1", title: "Fake slice", backlog: ["F-99"] }],
+      } as unknown as RunConfig;
+
+      try {
+        expect(() => buildSliceSpecs(fakeRun, tmpBacklog)).toThrow("F-99");
+      } finally {
+        fs.unlinkSync(tmpBacklog);
+      }
     });
   });
 
