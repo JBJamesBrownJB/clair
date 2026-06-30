@@ -310,3 +310,4 @@
 {"id":"019f182c-494e-7162-9d4b-28db4712888b","author":"JB","kind":"summary","text":"Want me to scope the runner?","ts":"2026-06-30T10:56:23Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
 {"id":"019f182c-d9ff-7122-b0be-b2b92ae1f1f1","author":"JB","kind":"prompt","text":"Ok, scope the runner","ts":"2026-06-30T10:56:59Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
 {"id":"019f182e-6c0d-7562-a3c4-13532db25680","author":"JB","kind":"summary","text":"Next, your call: - **Build it** (execute the plan), or - **Commit the two plans** first and stop here.","ts":"2026-06-30T10:58:43Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
+{"id":"019f1837-2a83-7203-be44-ff48d17c409f","author":"JB","kind":"prompt","text":"Two honest flags in the plan:\n- v1 runs agents in worktrees on your host, not containers — fine for a throwaway first signal, not for scale. :: huh? in english? why?","ts":"2026-06-30T11:08:15Z","turn":"811e8325-3960-4a7d-893e-728ba3e94faf"}
