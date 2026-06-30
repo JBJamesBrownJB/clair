@@ -81,39 +81,48 @@ export function writeReport(
   const outDir = opts?.outDir ?? DEFAULT_OUT_DIR;
 
   // -------------------------------------------------------------------------
-  // Build per-slice join (agents ∩ merge.results ∩ gate.perSlice by sliceId)
+  // Build per-slice join over the UNION of all three slice-id sets.
+  // Iterating only agents (old approach) silently dropped gate verdicts for
+  // slices whose agent record was missing.
   // -------------------------------------------------------------------------
-  const mergeMap = new Map(
-    parts.merge.results.map((r) => [r.sliceId, r])
-  );
+  const agentMap = new Map(parts.agents.map((a) => [a.sliceId, a]));
+  const mergeMap = new Map(parts.merge.results.map((r) => [r.sliceId, r]));
+
+  // Canonical slice-id set = union of all three sources, iterated in stable order.
+  const allSliceIds = [
+    ...new Set<string>([
+      ...parts.agents.map((a) => a.sliceId),
+      ...parts.merge.results.map((r) => r.sliceId),
+      ...Object.keys(parts.gate.perSlice),
+    ]),
+  ].sort();
 
   const perSlice: Record<string, PerSliceReport> = {};
-  for (const agent of parts.agents) {
-    const mr = mergeMap.get(agent.sliceId);
-    const gateVerdict = parts.gate.perSlice[agent.sliceId] ?? "fail";
-    const entry: PerSliceReport = {
-      committed: agent.committed,
-      tokens: agent.tokens,
-      turns: agent.turns,
-      didNotComplete: agent.didNotComplete,
-      merged: mr?.merged ?? false,
-      conflictedFiles: mr?.conflictedFiles ?? [],
-      gate: gateVerdict,
-    };
-    if (agent.error !== undefined) {
-      entry.error = agent.error;
-    }
-    perSlice[agent.sliceId] = entry;
-  }
-
-  // -------------------------------------------------------------------------
-  // Textual conflicts
-  // -------------------------------------------------------------------------
   const conflictPerSlice: Record<string, string[]> = {};
   let conflictTotal = 0;
-  for (const r of parts.merge.results) {
-    conflictPerSlice[r.sliceId] = r.conflictedFiles;
-    conflictTotal += r.conflictedFiles.length;
+
+  for (const sliceId of allSliceIds) {
+    const agent = agentMap.get(sliceId);
+    const mr = mergeMap.get(sliceId);
+    const gateVerdict = parts.gate.perSlice[sliceId] ?? "fail";
+    const conflictedFiles = mr?.conflictedFiles ?? [];
+
+    conflictPerSlice[sliceId] = conflictedFiles;
+    conflictTotal += conflictedFiles.length;
+
+    const entry: PerSliceReport = {
+      committed: agent?.committed ?? false,
+      tokens: agent?.tokens ?? 0,
+      turns: agent?.turns ?? 0,
+      didNotComplete: agent?.didNotComplete ?? true,
+      merged: mr?.merged ?? false,
+      conflictedFiles,
+      gate: gateVerdict,
+    };
+    if (agent?.error !== undefined) {
+      entry.error = agent.error;
+    }
+    perSlice[sliceId] = entry;
   }
 
   // -------------------------------------------------------------------------

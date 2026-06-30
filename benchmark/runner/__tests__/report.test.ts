@@ -300,6 +300,68 @@ describe("writeReport — agentsDidNotComplete", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Test 5: asymmetric inputs — slice only in gate.perSlice (the bug target)
+// ---------------------------------------------------------------------------
+
+describe("writeReport — asymmetric inputs (union join)", () => {
+  it("slice only in gate.perSlice gets a complete row with safe fallbacks", () => {
+    const outDir = makeTempDir();
+
+    // Only S1 and S2 have agents and merge entries; S9 exists only in gate
+    const agents: AgentResult[] = [
+      { sliceId: "S1", committed: true,  tokens: 1000, turns: 3, wallMs: 4000, exit: 0, didNotComplete: false },
+      { sliceId: "S2", committed: true,  tokens: 2000, turns: 5, wallMs: 6000, exit: 0, didNotComplete: false },
+    ];
+
+    const merge: MergeResult = {
+      integration: { sliceId: "integration", dir: "/fake/int", branch: "run/t/integration" },
+      mergedCleanly: false,
+      results: [
+        { sliceId: "S1", branch: "run/t/S1", merged: true, conflictedFiles: [] },
+        { sliceId: "S2", branch: "run/t/S2", merged: true, conflictedFiles: [] },
+      ],
+    };
+
+    // S9 appears only in gate.perSlice — no agent record, no merge entry
+    const gate: GateResult = {
+      perSlice: { S1: "pass", S2: "pass", S9: "fail" },
+      allPass: false,
+      tscClean: true,
+      buildClean: true,
+    };
+
+    const { json } = writeReport(
+      "run-asym",
+      { agents, merge, gate, wallMs: 5000 },
+      { outDir }
+    );
+
+    // S9 must appear in perSlice despite having no agent or merge entry
+    expect(json.perSlice["S9"]).toBeDefined();
+    const s9 = json.perSlice["S9"]!;
+
+    // Gate verdict must be preserved
+    expect(s9.gate).toBe("fail");
+
+    // Safe fallbacks for missing agent record
+    expect(s9.committed).toBe(false);
+    expect(s9.tokens).toBe(0);
+    expect(s9.turns).toBe(0);
+    expect(s9.didNotComplete).toBe(true);
+    expect(s9.error).toBeUndefined();
+
+    // Safe fallbacks for missing merge entry
+    expect(s9.merged).toBe(false);
+    expect(s9.conflictedFiles).toEqual([]);
+
+    // Existing slices still joined correctly
+    expect(json.perSlice["S1"]!.gate).toBe("pass");
+    expect(json.perSlice["S1"]!.committed).toBe(true);
+    expect(json.perSlice["S2"]!.gate).toBe("pass");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Summary content tests
 // ---------------------------------------------------------------------------
 
