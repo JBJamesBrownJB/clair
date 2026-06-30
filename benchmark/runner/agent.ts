@@ -164,7 +164,9 @@ export async function runAgent(
     const usage = parsed?.usage as Record<string, unknown> | undefined;
     tokens =
       (typeof usage?.input_tokens === "number" ? usage.input_tokens : 0) +
-      (typeof usage?.output_tokens === "number" ? usage.output_tokens : 0);
+      (typeof usage?.output_tokens === "number" ? usage.output_tokens : 0) +
+      (typeof usage?.cache_creation_input_tokens === "number" ? usage.cache_creation_input_tokens : 0) +
+      (typeof usage?.cache_read_input_tokens === "number" ? usage.cache_read_input_tokens : 0);
     turns = typeof parsed?.num_turns === "number" ? (parsed.num_turns as number) : 0;
     isError = parsed?.is_error === true;
   } catch {

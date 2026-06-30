@@ -11,9 +11,11 @@
  * Every shell invocation goes through the injectable RunCmdFn so tests
  * never need real git, pnpm, or vitest processes.
  */
-import { spawn } from "node:child_process";
 import type { RunConfig } from "./types.js";
 import type { Workspace } from "./workspace.js";
+import { defaultRunCmd } from "./shell.js";
+import type { RunCmdFn } from "./shell.js";
+export type { RunCmdFn } from "./shell.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -29,16 +31,6 @@ export interface GateResult {
   /** True iff `pnpm build` exited 0. */
   buildClean: boolean;
 }
-
-/**
- * Injectable shell-command abstraction.
- * argv[0] is the executable; rest are arguments.
- * The default implementation spawns the process and captures stdout.
- */
-export type RunCmdFn = (cmd: {
-  argv: string[];
-  cwd: string;
-}) => Promise<{ stdout: string; exit: number }>;
 
 // ---------------------------------------------------------------------------
 // Level → gate test files mapping
@@ -66,36 +58,6 @@ interface VitestJsonOutput {
     name?: string;
     status?: string;
   }>;
-}
-
-// ---------------------------------------------------------------------------
-// Default (real) implementation
-// ---------------------------------------------------------------------------
-function defaultRunCmd(cmd: {
-  argv: string[];
-  cwd: string;
-}): Promise<{ stdout: string; exit: number }> {
-  const [file, ...args] = cmd.argv;
-  return new Promise((resolve) => {
-    const child = spawn(file, args, {
-      cwd: cmd.cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-      // On Windows pnpm/git are .cmd wrappers; shell:true resolves them.
-      ...(process.platform === "win32" ? { shell: true } : {}),
-    });
-
-    let stdout = "";
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf-8");
-    });
-
-    child.on("close", (code: number | null) => {
-      resolve({ stdout, exit: code ?? 1 });
-    });
-    child.on("error", () => {
-      resolve({ stdout, exit: 1 });
-    });
-  });
 }
 
 // ---------------------------------------------------------------------------

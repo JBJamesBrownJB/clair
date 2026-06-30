@@ -31,15 +31,24 @@ function usageJson(opts: {
   num_turns?: number;
   input_tokens?: number;
   output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
   is_error?: boolean;
 } = {}): string {
+  const usage: Record<string, number> = {
+    input_tokens: opts.input_tokens ?? 100,
+    output_tokens: opts.output_tokens ?? 50,
+  };
+  if (opts.cache_creation_input_tokens !== undefined) {
+    usage.cache_creation_input_tokens = opts.cache_creation_input_tokens;
+  }
+  if (opts.cache_read_input_tokens !== undefined) {
+    usage.cache_read_input_tokens = opts.cache_read_input_tokens;
+  }
   return JSON.stringify({
     num_turns: opts.num_turns ?? 1,
     total_cost_usd: 0.01,
-    usage: {
-      input_tokens: opts.input_tokens ?? 100,
-      output_tokens: opts.output_tokens ?? 50,
-    },
+    usage,
     is_error: opts.is_error ?? false,
     result: "ok",
   });
@@ -110,6 +119,24 @@ describe("runAgent", () => {
 
     expect(result.tokens).toBe(55_000);
     expect(result.didNotComplete).toBe(true);
+  });
+
+  it("sums cache_creation_input_tokens and cache_read_input_tokens into total tokens", async () => {
+    const result = await runAgent(W1, SP1, BUDGET, {
+      runClaude: fakeRun(
+        usageJson({
+          input_tokens: 1000,
+          output_tokens: 500,
+          cache_creation_input_tokens: 200,
+          cache_read_input_tokens: 300,
+        }),
+        0
+      ),
+      checkCommitted: fakeCommitted(true),
+    });
+
+    // 1000 + 500 + 200 + 300 = 2000
+    expect(result.tokens).toBe(2000);
   });
 
   it("didNotComplete:true when not committed (no commit made)", async () => {
