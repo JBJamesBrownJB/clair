@@ -224,3 +224,27 @@ describe("runBenchmark — finally cleanup", () => {
     expect(writeReportSpy).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Test 4: teardown error does not mask original stage error
+// ---------------------------------------------------------------------------
+
+describe("runBenchmark — teardown error masked by finally", () => {
+  it("rejects with original GATE_BOOM error even when teardown also throws; teardown is still called", async () => {
+    const teardownSpy = vi.fn(async () => { throw new Error("TEARDOWN_BOOM"); });
+
+    const deps = {
+      provision: vi.fn(async () => fakeWorkspaces),
+      runAgents: vi.fn(async () => fakeAgents),
+      mergeSlices: vi.fn(async () => fakeMerge),
+      runGate: vi.fn(async () => { throw new Error("GATE_BOOM"); }),
+      writeReport: vi.fn(() => fakeReportResult),
+      teardown: teardownSpy,
+    } as unknown as RunBenchmarkDeps;
+
+    await expect(runBenchmark(runPath, { dryRun: false }, deps))
+      .rejects.toThrow("GATE_BOOM");
+
+    expect(teardownSpy).toHaveBeenCalledOnce();
+  });
+});

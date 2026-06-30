@@ -200,11 +200,18 @@ export async function runBenchmark(
   } finally {
     // 6. Clean up ALL worktrees: per-slice + integration (if created).
     //    Runs after report on the happy path; runs on any error too.
+    //    Teardown is wrapped so that if it throws, the teardown error is
+    //    logged but NOT propagated — the original stage error (if any)
+    //    is always the one that surfaces from runBenchmark.
     const toClean: Workspace[] = [
       ...workspaces,
       ...(merge?.integration ? [merge.integration] : []),
     ];
-    await _teardown(toClean);
+    try {
+      await _teardown(toClean);
+    } catch (teardownErr) {
+      console.error("[runBenchmark] teardown failed:", teardownErr);
+    }
   }
 }
 
