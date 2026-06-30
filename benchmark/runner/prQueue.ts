@@ -194,6 +194,11 @@ export async function runPrQueue(
   // Step 3: Process each branch as a PR (no branch is ever skipped)
   // -------------------------------------------------------------------------
   for (const branch of branches) {
+    // I-4: Snapshot assertion count BEFORE the merge (clean lastGreen tree).
+    // Conflict markers would inflate counts on a conflicted tree; snapshotting
+    // here ensures the tamper check compares against the last-known-good baseline.
+    const snapshotAssertions = await countAssertions(dir);
+
     // Step 3a: Attempt git merge --no-ff <branch>
     const { exit: mergeExit } = await runCmd({
       argv: [
@@ -211,7 +216,7 @@ export async function runPrQueue(
 
     if (mergeExit === 0) {
       // Merge committed cleanly — check CI
-      const ci = await runCIFn(dir);
+      const ci = await runCIFn(dir, { runCmd });
       if (ci.green) {
         // PR LANDS on first try — advance lastGreen
         const { stdout: newHead } = await runCmd({
@@ -232,9 +237,6 @@ export async function runPrQueue(
     // Step 3c: Fix sub-loop (single round; budget enforced inside runAgent)
     // -----------------------------------------------------------------------
 
-    // Snapshot assertion count BEFORE the fix agent touches the tree
-    const snapshotAssertions = await countAssertions(dir);
-
     const fixSpec: SliceSpec = {
       id: "fix-agent",
       title: "integration fix agent",
@@ -242,17 +244,28 @@ export async function runPrQueue(
     };
     const agentResult = await runAgentFn(integration, fixSpec, budget);
 
-    // Re-count and re-gate after the agent
-    const postAssertions = await countAssertions(dir);
-    const ci = await runCIFn(dir);
+    // I-1 + I-2: accumulate cost and count launch immediately — regardless of
+    // whether the PR eventually lands, tampers, or stays red. The cost was spent.
+    totalTokens += agentResult.tokens;
+    totalTurns += agentResult.turns;
+    totalWallMs += agentResult.wallMs;
+    totalRounds += 1;
 
-    // Tamper check: agent must not delete or weaken test assertions
+    // Re-count after the agent
+    const postAssertions = await countAssertions(dir);
+
+    // Minor: tamper check BEFORE CI — skip wasted CI run when already veto'd
     if (postAssertions < snapshotAssertions) {
       // TAMPERED — veto the landing, roll back, continue to next branch
       await runCmd({ argv: ["git", "reset", "--hard", lastGreen], cwd: dir });
+      // I-3: clean untracked files the fix agent may have left behind
+      await runCmd({ argv: ["git", "clean", "-fd"], cwd: dir });
       prs.push({ branch, outcome: "blocked", reason: "test-tampering", tampered: true });
       continue;
     }
+
+    // Gate: run CI now that tamper is cleared
+    const ci = await runCIFn(dir, { runCmd });
 
     if (ci.green) {
       // PR LANDS via fix — advance lastGreen
@@ -261,11 +274,6 @@ export async function runPrQueue(
         cwd: dir,
       });
       lastGreen = newHead.trim();
-
-      totalTokens += agentResult.tokens;
-      totalTurns += agentResult.turns;
-      totalWallMs += agentResult.wallMs;
-      totalRounds += 1;
 
       prs.push({
         branch,
@@ -282,6 +290,8 @@ export async function runPrQueue(
 
     // Still not green — roll back to lastGreen so the next PR merges onto clean state
     await runCmd({ argv: ["git", "reset", "--hard", lastGreen], cwd: dir });
+    // I-3: clean untracked files the fix agent may have left behind
+    await runCmd({ argv: ["git", "clean", "-fd"], cwd: dir });
     prs.push({ branch, outcome: "blocked", reason: blockReason });
   }
 
@@ -290,7 +300,8 @@ export async function runPrQueue(
   // -------------------------------------------------------------------------
   const anyTampered = prs.some((p) => p.tampered === true);
   const reachedSuccess = prs.every((p) => p.outcome === "merged") && !anyTampered;
-  const didNotComplete = !reachedSuccess;
+  // Minor: a run whose toolchain didn't set up can't be trusted as success
+  const didNotComplete = !reachedSuccess || envError;
 
   return {
     prs,

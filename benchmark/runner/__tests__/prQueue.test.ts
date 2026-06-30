@@ -255,8 +255,10 @@ describe("runPrQueue", () => {
     expect(result.prs[0].tampered).toBeUndefined();
     expect(result.reachedSuccess).toBe(false);
     expect(result.didNotComplete).toBe(true);
-    // No rounds landed
-    expect(result.rounds).toBe(0);
+    // I-2: fix agent launched = 1 round, even though PR stayed red
+    expect(result.rounds).toBe(1);
+    // I-1: failed agent's spend is still included in integrationCost
+    expect(result.integrationCost).toEqual({ tokens: 1000, turns: 10, wallMs: 500 });
   });
 
   // -------------------------------------------------------------------------
@@ -267,12 +269,12 @@ describe("runPrQueue", () => {
 
     const result = await runPrQueue(makeRun(), branches, INTEGRATION, BUDGET, {
       runCmd: makeFakeRunCmd({ headShas: ["sha-initial"] }),
-      // First call: CI red; second call: CI green (but tamper detected → overrides landing)
-      runCI: makeQueuedRunCI([RED_CI, GREEN_CI]),
+      // First call: CI red → blocked; tamper detected BEFORE second CI → second CI never called
+      runCI: makeQueuedRunCI([RED_CI]),
       runAgent: makeQueuedRunAgent([
         { tokens: 500, turns: 2, wallMs: 100, didNotComplete: false },
       ]),
-      // snapshot=10, post=8 → TAMPERED (post < snapshot)
+      // I-4: snapshot taken BEFORE merge (clean lastGreen); post=8 → TAMPERED (8 < 10)
       countAssertions: makeQueuedCountAssertions([10, 8]),
     });
 
@@ -283,8 +285,10 @@ describe("runPrQueue", () => {
     expect(result.prs[0].tampered).toBe(true);
     expect(result.reachedSuccess).toBe(false);
     expect(result.didNotComplete).toBe(true);
-    // Tampered PR must not contribute to integrationCost
-    expect(result.integrationCost).toEqual({ tokens: 0, turns: 0, wallMs: 0 });
+    // I-2: fix agent launched = 1 round even on tamper
+    expect(result.rounds).toBe(1);
+    // I-1: tampered agent's spend IS included in integrationCost (cost was really spent)
+    expect(result.integrationCost).toEqual({ tokens: 500, turns: 2, wallMs: 100 });
   });
 
   // -------------------------------------------------------------------------
