@@ -182,6 +182,91 @@ describe("mergeSlices", () => {
     }
   );
 
+  // ---------------------------------------------------------------------------
+  // 'leave' mode tests
+  // ---------------------------------------------------------------------------
+
+  it("leave mode, disjoint files: all merge cleanly, mergedCleanly=true, no markers, no merge in progress", async () => {
+    const b1 = `fixture/${runId}/lv-s1`;
+    const b2 = `fixture/${runId}/lv-s2`;
+    createFixtureBranch(b1, "lv-file-a.txt", "content from slice1\n");
+    fixtureBranches.push(b1);
+    createFixtureBranch(b2, "lv-file-b.txt", "content from slice2\n");
+    fixtureBranches.push(b2);
+
+    const result = await mergeSlices(
+      run,
+      [
+        { sliceId: "lv-s1", branch: b1 },
+        { sliceId: "lv-s2", branch: b2 },
+      ],
+      { rootDir: tmpDir, onConflict: "leave" }
+    );
+    integrationWorkspace = result.integration;
+
+    expect(result.mergedCleanly).toBe(true);
+    expect(result.results[0]).toMatchObject({ sliceId: "lv-s1", merged: true, conflictedFiles: [] });
+    expect(result.results[1]).toMatchObject({ sliceId: "lv-s2", merged: true, conflictedFiles: [] });
+    // No merge in progress when everything was clean
+    expect(mergeInProgress(result.integration.dir)).toBe(false);
+  });
+
+  it(
+    "leave mode, same-line conflict: conflict markers left in file, merge in progress, " +
+      "conflicting slice recorded, subsequent slice not attempted",
+    async () => {
+      const b1 = `fixture/${runId}/lv-c1`;
+      const b2 = `fixture/${runId}/lv-c2`;
+      const b3 = `fixture/${runId}/lv-c3`;
+      // b1 and b2 both create shared.txt with different content → add/add conflict on merge
+      createFixtureBranch(b1, "shared.txt", "version from slice1\n");
+      fixtureBranches.push(b1);
+      createFixtureBranch(b2, "shared.txt", "version from slice2\n");
+      fixtureBranches.push(b2);
+      // b3 is unrelated — but won't be attempted because b2 conflicts first
+      createFixtureBranch(b3, "lv-other.txt", "unrelated slice3\n");
+      fixtureBranches.push(b3);
+
+      const result = await mergeSlices(
+        run,
+        [
+          { sliceId: "lv-c1", branch: b1 },
+          { sliceId: "lv-c2", branch: b2 },
+          { sliceId: "lv-c3", branch: b3 },
+        ],
+        { rootDir: tmpDir, onConflict: "leave" }
+      );
+      integrationWorkspace = result.integration;
+
+      expect(result.mergedCleanly).toBe(false);
+
+      // First slice merged cleanly
+      expect(result.results[0]).toMatchObject({ sliceId: "lv-c1", merged: true, conflictedFiles: [] });
+
+      // Second slice conflicted — files recorded, marked not merged
+      expect(result.results[1].sliceId).toBe("lv-c2");
+      expect(result.results[1].merged).toBe(false);
+      expect(result.results[1].conflictedFiles).toContain("shared.txt");
+
+      // Conflict markers must be present in the working file
+      const conflictedContent = fs.readFileSync(
+        path.join(result.integration.dir, "shared.txt"),
+        "utf-8"
+      );
+      expect(conflictedContent).toContain("<<<<<<<");
+
+      // Integration worktree must have a merge in progress (NOT aborted)
+      expect(mergeInProgress(result.integration.dir)).toBe(true);
+
+      // Third slice was never attempted — recorded with empty conflictedFiles
+      expect(result.results[2]).toMatchObject({
+        sliceId: "lv-c3",
+        merged: false,
+        conflictedFiles: [],
+      });
+    }
+  );
+
   it("integration branch and worktree exist regardless of conflicts", async () => {
     const b1 = `fixture/${runId}/e1`;
     const b2 = `fixture/${runId}/e2`;

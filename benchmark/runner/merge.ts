@@ -55,8 +55,17 @@ function conflictedFilesIn(dir: string): string[] {
  * Merge all slice branches into a single integration branch created from arena/base.
  *
  * For each slice branch, attempts `git merge --no-ff <branch>` inside the integration
- * worktree.  On conflict: records the conflicted file paths, aborts the merge (so the
- * worktree stays clean), and continues to the next slice.  NO conflict resolver.
+ * worktree.  On conflict there are two modes (controlled by `opts.onConflict`):
+ *
+ * - `'abort'` (default): records the conflicted file paths, aborts the merge (so the
+ *   worktree stays clean), and continues to the next slice.  NO conflict resolver.
+ *
+ * - `'leave'`: does NOT abort. The conflict markers stay in the working tree and the
+ *   merge is left in-progress for a downstream resolver to fix.  Because git does not
+ *   allow a second `git merge` while one is already in progress, iteration stops after
+ *   the first conflict; the remaining slices are recorded as `merged:false` with empty
+ *   `conflictedFiles` (they were never attempted and are left for the resolver to handle
+ *   once the conflict is resolved).
  *
  * The integration worktree is NOT torn down here — the caller is responsible (pass
  * `result.integration` to `teardown`).
@@ -64,9 +73,10 @@ function conflictedFilesIn(dir: string): string[] {
 export async function mergeSlices(
   run: RunConfig,
   slices: Array<{ sliceId: string; branch: string }>,
-  opts?: { rootDir?: string }
+  opts?: { rootDir?: string; onConflict?: "abort" | "leave" }
 ): Promise<MergeResult> {
   const rootDir = opts?.rootDir ?? DEFAULT_WORK_DIR;
+  const onConflict = opts?.onConflict ?? "abort";
   const integrationDir = path.join(rootDir, `${run.id}-integration`);
   const integrationBranch = `run/${run.id}/integration`;
 
@@ -96,9 +106,32 @@ export async function mergeSlices(
         conflictedFiles: [],
       });
     } catch {
-      // Merge left conflicts in the index — capture them, then abort.
+      // Merge left conflicts in the index — capture them.
       const conflictedFiles = conflictedFilesIn(integrationDir);
 
+      if (onConflict === "leave") {
+        // Leave the conflict markers and the in-progress merge state for a resolver.
+        // git does not allow another merge while one is in progress, so we stop here.
+        // Record this slice as conflicted, then mark all remaining slices as not-attempted.
+        results.push({
+          sliceId: slice.sliceId,
+          branch: slice.branch,
+          merged: false,
+          conflictedFiles,
+        });
+        const sliceIndex = slices.indexOf(slice);
+        for (const remaining of slices.slice(sliceIndex + 1)) {
+          results.push({
+            sliceId: remaining.sliceId,
+            branch: remaining.branch,
+            merged: false,
+            conflictedFiles: [],
+          });
+        }
+        break;
+      }
+
+      // 'abort' mode (default): abort the merge so the worktree stays clean, then continue.
       try {
         gitIn(integrationDir, ["merge", "--abort"]);
       } catch (abortErr) {
