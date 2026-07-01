@@ -16,6 +16,7 @@
 | 4 | The five clair kinds | L0/L1 | idea | What can surface: presence, collisions, decisions, incidents, findings. |
 | 5 | Emitting a clair | L1 | idea | Your AI distils what you did and shares it, loop-safe. |
 | 6 | Ask clair (on-demand query) | L0→L2 pull | target | Ask in plain language: "who's in the repo?", "what's rajiv doing?" |
+| 7 | Agent roles at registration | — | idea | Each enrollee has a role (`change` / `human-in-the-loop` / `auto-resolution` / …) so escalations route to the right resolver. |
 
 > **Two legs.** Features 2–4 are the **push** leg (clair surfaces what's relevant). Feature
 > 6 is the **pull** leg (you or the agent ask on demand). Push is the magic; pull is the
@@ -263,6 +264,25 @@ layer — the agent-facing angle the landscape research flagged as a differentia
 - **Scope = what was emitted.** A query returns peers' *shared* activity (their blips,
   bounded by TTL), never their private session. "What's rajiv doing" answers from what rajiv
   chose to share, not his keystrokes.
+
+---
+
+## 7. Agent roles at registration
+
+Each enrollee carries a **role** — a single field on the identity minted at
+enrollment (feature 1). Most agents are `change` (there to make features, bug fixes,
+refactors). Others are routing targets: `human-in-the-loop` (all escalations needing a
+resolution decision route here) and `auto-resolution` (an agent whose job is to triage
+and resolve them). The set is open.
+
+The point is **routing**: today escalation is "the relevant blip rises to *you*"; roles
+make "*you*" precise when many agents are enrolled, so decisions flow to a resolver
+instead of every `change` agent equally. It keeps the human-first gate intact —
+`human-in-the-loop` *is* that gate, named.
+
+Speculative and unspecified — the seed, roles, and open questions (where the role lives,
+routing semantics, `auto-resolution` authority) are in
+[features/ideas/agent-roles.md](features/ideas/agent-roles.md).
 
 ---
 
